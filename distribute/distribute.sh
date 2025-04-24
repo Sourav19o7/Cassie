@@ -1,81 +1,60 @@
 #!/bin/bash
 
-# Empathic Problem Solver CLI (Claude Haiku Edition) Distributor
-# This script downloads and installs the prepackaged Empathic Problem Solver CLI (Claude Haiku Edition)
+# Cassie CLI Installer
+echo "Cassie CLI Installer"
+echo "===================="
 
-echo "Empathic Problem Solver CLI (Claude Haiku Edition) Installer"
-echo "======================================"
+# Set up installation directory
+INSTALL_DIR="$HOME/.local/share/cassie"
+mkdir -p "$INSTALL_DIR"
 
-# Configuration
-DOWNLOAD_URL="https://sourav19o7.github.io/Cassie/empathic-solver"
-VERSION="1.1.0"
+echo "Creating Python virtual environment..."
+python3 -m venv "$INSTALL_DIR/venv"
+source "$INSTALL_DIR/venv/bin/activate"
 
-# Create temporary directory
-TMP_DIR=$(mktemp -d)
-cd $TMP_DIR
+echo "Installing required dependencies..."
+pip install typer rich pandas numpy requests keyring schedule
 
-echo "Downloading Empathic Problem Solver CLI (Claude Haiku Edition) v$VERSION (Claude Haiku Edition)..."
-curl -L "$DOWNLOAD_URL" -o empathic-solver
+# Download the main Python scripts
+echo "Downloading Cassie scripts..."
+mkdir -p "$INSTALL_DIR/src"
+curl -L "https://sourav19o7.github.io/Cassie/empathic_solver.py" -o "$INSTALL_DIR/src/empathic_solver.py"
+curl -L "https://sourav19o7.github.io/Cassie/reminders.py" -o "$INSTALL_DIR/src/reminders.py"
 
 if [ $? -ne 0 ]; then
-    echo "Download failed. Please check your internet connection and try again."
-    cd - > /dev/null
-    rm -rf $TMP_DIR
+    echo "Failed to download scripts. Please check your internet connection."
     exit 1
 fi
 
-echo "Download complete. Installing..."
+# Create launcher script
+echo "Creating launcher..."
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/cassie" << 'EOF'
+#!/bin/bash
+cd "$HOME/.local/share/cassie/src"  # Change to the directory containing the scripts
+source "$HOME/.local/share/cassie/venv/bin/activate"
+python "$HOME/.local/share/cassie/src/empathic_solver.py" "$@"
+EOF
 
-# Make executable
-chmod +x empathic-solver
+chmod +x "$HOME/.local/bin/cassie"
 
-# Create destination directory if it doesn't exist
-if [ ! -d "$HOME/.local/bin" ]; then
-    mkdir -p "$HOME/.local/bin"
-fi
-
-# Move to bin directory
-mv empathic-solver "$HOME/.local/bin/"
-
-# Add to PATH if not already there
+# Add to PATH if needed
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bash_profile"
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
-    echo "Added $HOME/.local/bin to PATH"
-    echo "You may need to restart your terminal or run 'source ~/.bash_profile' to use the command."
+    echo "Added $HOME/.local/bin to PATH. You may need to restart your terminal or run 'source ~/.bash_profile'"
 fi
-
-# Install dependencies
-echo "Installing required Python packages..."
-pip3 install typer rich pandas numpy requests keyring --quiet
-
-# Create global symlink (optional)
-if [ "$1" == "--global" ]; then
-    echo "Creating global symlink (requires sudo)..."
-    sudo ln -sf "$HOME/.local/bin/empathic-solver" /usr/local/bin/empathic-solver
-    
-    if [ $? -ne 0 ]; then
-        echo "Failed to create global symlink. You can still use the command from your user account."
-    else
-        echo "Global symlink created successfully."
-    fi
-fi
-
-# Clean up
-cd - > /dev/null
-rm -rf $TMP_DIR
 
 echo ""
 echo "Installation completed successfully!"
-echo "You can now use the Empathic Problem Solver CLI (Claude Haiku Edition) by running: empathic-solver"
+echo "You can now use Cassie by running: cassie"
 echo ""
 echo "First-time setup:"
-echo "  empathic-solver configure   # Set up your Claude API key and preferences"
+echo "  cassie configure   # Set up your Claude API key and preferences"
 echo ""
 echo "Try these commands:"
-echo "  empathic-solver --help      # Show help"
-echo "  empathic-solver new         # Create a new problem"
-echo "  empathic-solver list        # List all problems"
-echo "  empathic-solver analyze 1   # Get AI analysis of problem #1"
+echo "  cassie --help      # Show help"
+echo "  cassie new         # Create a new problem"
+echo "  cassie list        # List all problems"
 echo ""
-echo "Enjoy using Empathic Problem Solver CLI (Claude Haiku Edition) powered by Claude Haiku!"
+echo "Enjoy using Cassie!"

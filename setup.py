@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="empathic-solver",
-    version="1.2.0",  # Updated version
-    py_modules=["empathic_solver", "reminders"],  # Added reminders module
+    version="1.3.0",  # Updated version with WhatsApp integration
+    py_modules=["empathic_solver", "reminders", "whatsapp_integration"],  # Added whatsapp_integration module
     include_package_data=True,
     install_requires=[
         "typer>=0.9.0",
@@ -12,7 +12,7 @@ setup(
         "numpy>=1.24.3",
         "requests>=2.28.0",
         "keyring>=23.0.0",
-        "schedule>=1.2.0",  # Added schedule library
+        "schedule>=1.2.0",
     ],
     entry_points="""
         [console_scripts]
@@ -21,8 +21,8 @@ setup(
     python_requires=">=3.8",
     author="Sourav Dey",
     author_email="sourav.dey147@gmail.com",
-    description="A CLI tool for empathetic problem-solving with metrics tracking and reminders, powered by Claude Haiku",
-    keywords="cli, problem-solving, metrics, productivity, ai, claude, reminders",
+    description="A CLI tool for empathetic problem-solving with metrics tracking, reminders, and WhatsApp integration, powered by Claude Haiku",
+    keywords="cli, problem-solving, metrics, productivity, ai, claude, reminders, whatsapp",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: End Users/Desktop",

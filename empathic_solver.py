@@ -34,6 +34,11 @@ try:
 except ImportError:
     import reminders
 
+try:
+    from . import whatsapp_integration
+except ImportError:
+    import whatsapp_integration
+
 # Initialize Typer app
 app = typer.Typer(help="Empathic Problem Solver CLI")
 console = Console()
@@ -1644,6 +1649,89 @@ def reminder_test(
     console.print("[blue]Sending test notification...[/blue]")
     reminder_manager.trigger_reminder(problem_id)
     console.print("[green]Test notification sent.[/green]")
+
+
+@app.command()
+def configure_whatsapp():
+    """Configure WhatsApp integration settings."""
+    init_app()
+    whatsapp_integration.command_configure_whatsapp()
+
+@app.command()
+def scan_whatsapp(
+    problem_id: Optional[int] = typer.Option(None, help="ID of the problem to associate tasks with")
+):
+    """Scan WhatsApp messages for actionable tasks."""
+    init_app()
+    whatsapp_integration.command_scan_whatsapp(problem_id)
+
+@app.command()
+def whatsapp_tasks(
+    problem_id: Optional[int] = typer.Option(None, help="Filter tasks by problem ID"),
+    status: Optional[str] = typer.Option(None, help="Filter tasks by status (pending/completed/converted)"),
+    limit: int = typer.Option(20, help="Maximum number of tasks to show")
+):
+    """List tasks extracted from WhatsApp messages."""
+    init_app()
+    whatsapp_integration.command_list_whatsapp_tasks(problem_id, status, limit)
+
+@app.command()
+def whatsapp_complete_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to mark as completed")
+):
+    """Mark a WhatsApp task as completed."""
+    init_app()
+    whatsapp_integration.command_complete_whatsapp_task(task_id)
+
+@app.command()
+def whatsapp_pending_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to mark as pending")
+):
+    """Mark a WhatsApp task as pending."""
+    init_app()
+    whatsapp_integration.command_pending_whatsapp_task(task_id)
+
+@app.command()
+def whatsapp_assign_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to assign"),
+    problem_id: int = typer.Argument(..., help="ID of the problem to assign the task to")
+):
+    """Assign a WhatsApp task to a specific problem."""
+    init_app()
+    whatsapp_integration.command_assign_whatsapp_task(task_id, problem_id)
+
+@app.command()
+def whatsapp_convert_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to convert to an action step")
+):
+    """Convert a WhatsApp task to an action step for its assigned problem."""
+    init_app()
+    whatsapp_integration.command_convert_whatsapp_task(task_id)
+
+@app.command()
+def whatsapp_view_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to view details for")
+):
+    """View detailed information about a WhatsApp task."""
+    init_app()
+    whatsapp_integration.command_view_whatsapp_task(task_id)
+
+@app.command()
+def whatsapp_delete_task(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to delete")
+):
+    """Delete a WhatsApp task."""
+    init_app()
+    whatsapp_integration.command_delete_whatsapp_task(task_id)
+
+@app.command()
+def whatsapp_priority(
+    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to update"),
+    priority: str = typer.Argument(..., help="New priority (high/medium/low)")
+):
+    """Update the priority of a WhatsApp task."""
+    init_app()
+    whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
 
 if __name__ == "__main__":
     # Initialize the application
