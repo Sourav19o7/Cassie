@@ -1643,7 +1643,7 @@ def reminder_test(
     # Send a test notification
     console.print("[blue]Sending test notification...[/blue]")
     reminder_manager.trigger_reminder(problem_id)
-    console.print("[green]Test notification sent.[/green]")x
+    console.print("[green]Test notification sent.[/green]")
 
 if __name__ == "__main__":
     # Initialize the application
