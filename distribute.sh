@@ -15,13 +15,14 @@ source "$INSTALL_DIR/venv/bin/activate"
 echo "Installing required dependencies..."
 pip install typer rich pandas numpy requests keyring schedule
 
-# Download the main Python script
-echo "Downloading Cassie script..."
+# Download the main Python scripts
+echo "Downloading Cassie scripts..."
 mkdir -p "$INSTALL_DIR/src"
 curl -L "https://sourav19o7.github.io/Cassie/empathic_solver.py" -o "$INSTALL_DIR/src/empathic_solver.py"
+curl -L "https://sourav19o7.github.io/Cassie/reminders.py" -o "$INSTALL_DIR/src/reminders.py"
 
 if [ $? -ne 0 ]; then
-    echo "Failed to download script. Please check your internet connection."
+    echo "Failed to download scripts. Please check your internet connection."
     exit 1
 fi
 
@@ -30,6 +31,7 @@ echo "Creating launcher..."
 mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/cassie" << 'EOF'
 #!/bin/bash
+cd "$HOME/.local/share/cassie/src"  # Change to the directory containing the scripts
 source "$HOME/.local/share/cassie/venv/bin/activate"
 python "$HOME/.local/share/cassie/src/empathic_solver.py" "$@"
 EOF
