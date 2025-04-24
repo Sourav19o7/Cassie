@@ -4,7 +4,7 @@
 echo "Cassie CLI Installer"
 echo "===================="
 
-# Create a Python virtual environment
+# Set up installation directory
 INSTALL_DIR="$HOME/.local/share/cassie"
 mkdir -p "$INSTALL_DIR"
 
@@ -12,31 +12,35 @@ echo "Creating Python virtual environment..."
 python3 -m venv "$INSTALL_DIR/venv"
 source "$INSTALL_DIR/venv/bin/activate"
 
-echo "Installing Cassie and dependencies..."
+echo "Installing required dependencies..."
 pip install typer rich pandas numpy requests keyring
 
-# Download the main script
+# Download the main Python script
 echo "Downloading Cassie script..."
 mkdir -p "$INSTALL_DIR/src"
 curl -L "https://sourav19o7.github.io/Cassie/empathic_solver.py" -o "$INSTALL_DIR/src/empathic_solver.py"
 
-# Create a launcher script
+if [ $? -ne 0 ]; then
+    echo "Failed to download script. Please check your internet connection."
+    exit 1
+fi
+
+# Create launcher script
 echo "Creating launcher..."
 mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/cassie" << EOF
+cat > "$HOME/.local/bin/cassie" << 'EOF'
 #!/bin/bash
-source "$INSTALL_DIR/venv/bin/activate"
-python "$INSTALL_DIR/src/empathic_solver.py" "\$@"
+source "$HOME/.local/share/cassie/venv/bin/activate"
+python "$HOME/.local/share/cassie/src/empathic_solver.py" "$@"
 EOF
 
 chmod +x "$HOME/.local/bin/cassie"
 
-# Add to PATH if not already there
+# Add to PATH if needed
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bash_profile"
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
-    echo "Added $HOME/.local/bin to PATH"
-    echo "You may need to restart your terminal or run 'source ~/.bash_profile' to use the command."
+    echo "Added $HOME/.local/bin to PATH. You may need to restart your terminal or run 'source ~/.bash_profile'"
 fi
 
 echo ""

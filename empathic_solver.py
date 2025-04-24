@@ -16,7 +16,6 @@ from rich.console import Console
 from rich.table import Table
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.progress import Progress
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -24,6 +23,7 @@ import requests
 import textwrap
 import getpass
 import keyring
+import time
 
 # Initialize Typer app
 app = typer.Typer(help="Empathic Problem Solver CLI")
@@ -160,18 +160,16 @@ def call_claude_api(prompt, model=None, max_tokens=500):
     }
     
     try:
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Thinking...", total=1)
-            
-            response = requests.post(CLAUDE_API_URL, headers=headers, json=data)
-            progress.update(task, completed=1)
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result["content"][0]["text"]
-            else:
-                console.print(f"[red]API Error: {response.status_code} - {response.text}[/red]")
-                return None
+        console.print("[cyan]Thinking...[/cyan]")
+        
+        response = requests.post(CLAUDE_API_URL, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result["content"][0]["text"]
+        else:
+            console.print(f"[red]API Error: {response.status_code} - {response.text}[/red]")
+            return None
     except Exception as e:
         console.print(f"[red]Error calling Claude API: {str(e)}[/red]")
         return None
@@ -668,16 +666,13 @@ def new(title: str = typer.Option(..., prompt=True, help="Short title for your p
     empathetic_response = get_empathetic_response(description)
     console.print(Panel(empathetic_response, title="Understanding Your Challenge", border_style="blue"))
     
-    with Progress() as progress:
-        task1 = progress.add_task("[cyan]Generating KPIs...", total=1)
-        # Generate KPIs
-        kpis = generate_kpis(description)
-        progress.update(task1, completed=1)
-        
-        task2 = progress.add_task("[cyan]Creating action plan...", total=1)
-        # Generate action steps
-        action_steps = generate_action_steps(description, kpis)
-        progress.update(task2, completed=1)
+    console.print("[cyan]Generating KPIs...[/cyan]")
+    # Generate KPIs
+    kpis = generate_kpis(description)
+    
+    console.print("[cyan]Creating action plan...[/cyan]")
+    # Generate action steps
+    action_steps = generate_action_steps(description, kpis)
     
     # Store in database
     conn = sqlite3.connect(DB_PATH)
@@ -819,12 +814,10 @@ def display_problem(problem_id: int):
     
     console.print(action_table)
     
-    # Display recommendations with progress indicator
+    # Display recommendations without progress indicator
     console.print("\n[bold]Generating recommendations based on your progress...[/bold]")
-    with Progress() as progress:
-        task = progress.add_task("[cyan]Analyzing data...", total=1)
-        recommendations = get_recommendations(problem_id)
-        progress.update(task, completed=1)
+    time.sleep(1)  # Simple delay instead of progress bar
+    recommendations = get_recommendations(problem_id)
     
     rec_md = "## Recommendations\n\n" + "\n".join([f"- {r}" for r in recommendations])
     console.print(Markdown(rec_md))
@@ -1299,10 +1292,8 @@ def analyze(
                         border_style="green"))
     
     console.print("\n[bold]Generating in-depth analysis...[/bold]")
-    with Progress() as progress:
-        task = progress.add_task("[cyan]Consulting Claude Haiku...", total=1)
-        analysis = call_claude_api(prompt, max_tokens=1000)
-        progress.update(task, completed=1)
+    time.sleep(2)  # Simple delay instead of progress bar
+    analysis = call_claude_api(prompt, max_tokens=1000)
     
     if analysis:
         console.print(Panel(analysis, title="AI Analysis", border_style="cyan"))
