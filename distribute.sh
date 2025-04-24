@@ -7,7 +7,7 @@ echo "Empathic Problem Solver CLI Installer"
 echo "======================================"
 
 # Configuration
-DOWNLOAD_URL="https://your-private-server/empathic-solver"
+DOWNLOAD_URL="https://sourav19o7.github.io/Cassie/empathic-solver"
 VERSION="1.1.0"
 
 # Create temporary directory
