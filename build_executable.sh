@@ -83,6 +83,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+
 # Check if build was successful
 if [ -f "dist/empathic-solver" ]; then
     echo "Build successful! Executable created at: dist/empathic-solver"
