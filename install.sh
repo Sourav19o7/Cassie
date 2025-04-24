@@ -64,7 +64,7 @@ fi
 
 # Install required packages
 echo "Installing required packages..."
-pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0
+pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0
 
 # Check if we are in the source directory
 if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
@@ -78,8 +78,9 @@ if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
             mkdir -p "$HOME/.local/bin"
         fi
         
-        # Copy the main script
+        # Copy the main script and reminder module
         cp empathic_solver.py "$HOME/.local/bin/empathic-solver"
+        cp reminders.py "$HOME/.local/bin/"
         chmod +x "$HOME/.local/bin/empathic-solver"
         
         # Add to PATH if not already there
@@ -114,6 +115,15 @@ if [ "$1" == "--symlink" ] || [ "$2" == "--symlink" ]; then
     fi
 fi
 
+# Check if we need to set up notification permissions on macOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Setting up notification permissions for macOS..."
+    echo "Note: You may need to manually grant notification permissions in System Preferences > Notifications"
+    
+    # Create a simple AppleScript to request notification permissions
+    osascript -e 'display notification "Empathic Problem Solver installed successfully!" with title "Empathic Problem Solver"'
+fi
+
 echo ""
 echo "Installation completed successfully!"
 echo "You can now use the Empathic Problem Solver CLI by running: empathic-solver"
@@ -126,5 +136,13 @@ echo "  empathic-solver --help      # Show help"
 echo "  empathic-solver new         # Create a new problem"
 echo "  empathic-solver list        # List all problems"
 echo "  empathic-solver analyze 1   # Get AI analysis of problem #1"
+echo ""
+echo "New reminder commands:"
+echo "  empathic-solver reminder-set 1      # Set a reminder for problem #1"
+echo "  empathic-solver reminders-list      # List all active reminders"
+echo "  empathic-solver reminder-disable 1  # Disable a reminder"
+echo "  empathic-solver reminder-enable 1   # Enable a reminder"
+echo "  empathic-solver reminder-delete 1   # Delete a reminder"
+echo "  empathic-solver reminder-test 1     # Test notification for problem #1"
 echo ""
 echo "Enjoy using Empathic Problem Solver CLI powered by Claude Haiku!"

@@ -25,6 +25,15 @@ import getpass
 import keyring
 import time
 
+import threading
+import schedule
+from typing import List, Optional
+
+try:
+    from . import reminders
+except ImportError:
+    import reminders
+
 # Initialize Typer app
 app = typer.Typer(help="Empathic Problem Solver CLI")
 console = Console()
@@ -101,10 +110,17 @@ def init_app():
             "model": DEFAULT_MODEL,
             "use_ai": True,
             "max_tokens": 500,
-            "api_key_set": False
+            "api_key_set": False,
+            "reminders_enabled": True
         }
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
+
+    # Initialize reminders
+    reminder_manager = reminders.init_reminders()
+    
+    # Check for any past-due reminders
+    reminders.check_due_reminders()
 
 def load_config():
     """Load the application configuration."""
@@ -482,7 +498,7 @@ def get_recommendations(problem_id: int) -> List[str]:
     
     conn.close()
     
-    config = load_config()
+    config = onfig()
     
     if config.get("use_ai", True) and config.get("api_key_set", False):
         # Prepare KPI data
@@ -643,9 +659,70 @@ def configure():
         console.print("[yellow]Invalid value. Using default of 500.[/yellow]")
         config["max_tokens"] = 500
     
+    # Add reminder settings
+    reminders_enabled = typer.confirm(
+        "Enable KPI update reminders?", 
+        default=config.get("reminders_enabled", True)
+    )
+    config["reminders_enabled"] = reminders_enabled
+    
     # Save config
     save_config(config)
     console.print("[green]Configuration updated successfully.[/green]")
+
+    # If reminders were enabled, ask if user wants to set one now
+    if reminders_enabled:
+        if typer.confirm("Would you like to set up a reminder for a problem now?"):
+            # List available problems
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title FROM problems WHERE status = 'active'")
+            problems = cursor.fetchall()
+            conn.close()
+            
+            if not problems:
+                console.print("[yellow]No active problems found. Create one with 'new' command first.[/yellow]")
+                return
+            
+            # Display problems
+            console.print("Available problems:")
+            for pid, title in problems:
+                console.print(f"{pid}: {title}")
+            
+            # Ask for problem ID
+            problem_id = typer.prompt("Enter the problem ID to set a reminder for", type=int)
+            
+            # Ask for frequency
+            frequency_options = ["daily", "weekly", "monthly"]
+            frequency_idx = typer.prompt(
+                "Select reminder frequency:\n1. Daily\n2. Weekly\n3. Monthly\nEnter choice (1-3)",
+                default="1"
+            )
+            
+            try:
+                frequency = frequency_options[int(frequency_idx) - 1]
+            except:
+                frequency = "daily"
+                console.print("[yellow]Invalid choice. Using daily frequency.[/yellow]")
+            
+            # Ask for time
+            time = typer.prompt("Enter time for reminder (HH:MM)", default="09:00")
+            
+            # Handle weekly/monthly specific options
+            days = None
+            day_of_month = None
+            
+            if frequency == "weekly":
+                days_input = typer.prompt("Enter days of week (comma-separated, e.g. Monday,Wednesday,Friday)", default="Monday")
+                days = days_input.split(",")
+            elif frequency == "monthly":
+                day_of_month = typer.prompt("Enter day of month (1-28)", default="1", type=int)
+            
+            # Create the reminder
+            try:
+                reminder_set(problem_id, frequency, time, days, day_of_month)
+            except Exception as e:
+                console.print(f"[red]Error setting reminder: {e}[/red]")
 
 @app.command()
 def new(title: str = typer.Option(..., prompt=True, help="Short title for your problem"),
@@ -655,6 +732,40 @@ def new(title: str = typer.Option(..., prompt=True, help="Short title for your p
     
     # Check if API key is set, prompt if needed
     config = load_config()
+    if config.get("reminders_enabled", True):
+        if typer.confirm("Would you like to set up a reminder for this problem?"):
+            # Ask for frequency
+            frequency_options = ["daily", "weekly", "monthly"]
+            frequency_idx = typer.prompt(
+                "Select reminder frequency:\n1. Daily\n2. Weekly\n3. Monthly\nEnter choice (1-3)",
+                default="1"
+            )
+            
+            try:
+                frequency = frequency_options[int(frequency_idx) - 1]
+            except:
+                frequency = "daily"
+                console.print("[yellow]Invalid choice. Using daily frequency.[/yellow]")
+            
+            # Ask for time
+            time = typer.prompt("Enter time for reminder (HH:MM)", default="09:00")
+            
+            # Handle weekly/monthly specific options
+            days = None
+            day_of_month = None
+            
+            if frequency == "weekly":
+                days_input = typer.prompt("Enter days of week (comma-separated, e.g. Monday,Wednesday,Friday)", default="Monday")
+                days = days_input.split(",")
+            elif frequency == "monthly":
+                day_of_month = typer.prompt("Enter day of month (1-28)", default="1", type=int)
+            
+            # Create the reminder
+            try:
+                reminder_set(problem_id, frequency, time, days, day_of_month)
+            except Exception as e:
+                console.print(f"[red]Error setting reminder: {e}[/red]")
+
     if config.get("use_ai", True) and not config.get("api_key_set", False):
         console.print("[yellow]Claude API key is not set. AI features will be limited.[/yellow]")
         if typer.confirm("Would you like to set your Claude API key now?"):
@@ -1300,5 +1411,248 @@ def analyze(
     else:
         console.print("[red]Failed to generate analysis. Please check your API key and try again.[/red]")
 
+@app.command()
+def reminder_set(
+    problem_id: int = typer.Argument(..., help="ID of the problem to set a reminder for"),
+    frequency: str = typer.Option("daily", help="Reminder frequency (daily/weekly/monthly)"),
+    time: str = typer.Option("09:00", help="Time for reminder (HH:MM)"),
+    days: Optional[List[str]] = typer.Option(None, help="Days of week for weekly reminders (e.g. Monday,Wednesday,Friday)"),
+    day_of_month: Optional[int] = typer.Option(None, help="Day of month for monthly reminders (1-28)")
+):
+    """Set a reminder to update KPIs for a problem."""
+    init_app()
+    
+    # Get the problem to verify it exists
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT title FROM problems WHERE id = ?", (problem_id,))
+    problem = cursor.fetchone()
+    conn.close()
+    
+    if not problem:
+        console.print(f"[red]Problem with ID {problem_id} not found.[/red]")
+        return
+    
+    # Validate inputs
+    valid_frequencies = ["daily", "weekly", "monthly"]
+    if frequency not in valid_frequencies:
+        console.print(f"[red]Invalid frequency. Choose from: {', '.join(valid_frequencies)}[/red]")
+        return
+    
+    # Validate time format
+    try:
+        hour, minute = map(int, time.split(':'))
+        if not (0 <= hour < 24 and 0 <= minute < 60):
+            raise ValueError("Invalid time range")
+    except:
+        console.print("[red]Invalid time format. Use HH:MM (24-hour format)[/red]")
+        return
+    
+    # Create weekdays list for weekly frequency
+    weekdays = None
+    if frequency == "weekly":
+        valid_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        if not days:
+            console.print("[yellow]No days specified for weekly reminder. Using Monday.[/yellow]")
+            weekdays = ["Monday"]
+        else:
+            # Parse the days string
+            weekdays = []
+            day_list = days if isinstance(days, list) else days.split(',')
+            for day in day_list:
+                day_lower = day.lower().strip()
+                if day_lower in valid_days:
+                    weekdays.append(day.capitalize())
+                else:
+                    console.print(f"[yellow]Invalid day '{day}'. Skipping.[/yellow]")
+            
+            if not weekdays:
+                console.print("[yellow]No valid days specified. Using Monday.[/yellow]")
+                weekdays = ["Monday"]
+    
+    # Validate day_of_month for monthly frequency
+    if frequency == "monthly":
+        if not day_of_month or not (1 <= day_of_month <= 28):
+            console.print("[yellow]Invalid day of month. Using day 1.[/yellow]")
+            day_of_month = 1
+    
+    # Get the reminder manager
+    reminder_manager = reminders.get_reminder_manager()
+    
+    # Check if a reminder already exists
+    existing_reminder = reminder_manager.get_reminder(problem_id)
+    if existing_reminder:
+        if not typer.confirm(f"A reminder already exists for this problem. Do you want to replace it?"):
+            return
+        reminder_manager.delete_reminder(problem_id)
+    
+    # Create and add the reminder
+    new_reminder = reminders.Reminder(
+        problem_id=problem_id,
+        frequency=frequency,
+        time=time,
+        weekdays=weekdays,
+        day_of_month=day_of_month,
+        enabled=True
+    )
+    
+    reminder_manager.add_reminder(new_reminder)
+    
+    # Format message based on frequency
+    if frequency == "daily":
+        schedule_msg = f"Daily at {time}"
+    elif frequency == "weekly":
+        schedule_msg = f"Weekly on {', '.join(weekdays)} at {time}"
+    elif frequency == "monthly":
+        schedule_msg = f"Monthly on day {day_of_month} at {time}"
+    
+    console.print(f"[green]Reminder set: {schedule_msg}[/green]")
+    console.print("You'll receive notifications when it's time to update your KPIs.")
+
+@app.command()
+def reminders_list():
+    """List all active reminders."""
+    init_app()
+    
+    reminder_manager = reminders.get_reminder_manager()
+    reminder_list = reminder_manager.list_reminders()
+    
+    if not reminder_list:
+        console.print("No reminders set. Use 'reminder-set' to create one.")
+        return
+    
+    table = Table(title="Active Reminders")
+    table.add_column("Problem ID")
+    table.add_column("Problem Title")
+    table.add_column("Schedule")
+    table.add_column("Status")
+    table.add_column("Last Triggered")
+    
+    for r in reminder_list:
+        # Format schedule
+        if r["frequency"] == "daily":
+            schedule = f"Daily at {r['time']}"
+        elif r["frequency"] == "weekly" and r["weekdays"]:
+            schedule = f"Weekly on {', '.join(r['weekdays'])} at {r['time']}"
+        elif r["frequency"] == "monthly" and r["day_of_month"]:
+            schedule = f"Monthly on day {r['day_of_month']} at {r['time']}"
+        else:
+            schedule = "Custom schedule"
+        
+        # Format status
+        status = "[green]Enabled[/green]" if r["enabled"] else "[red]Disabled[/red]"
+        
+        # Format last triggered
+        if r["last_triggered"]:
+            try:
+                last_dt = datetime.datetime.fromisoformat(r["last_triggered"])
+                last_triggered = last_dt.strftime("%Y-%m-%d %H:%M")
+            except:
+                last_triggered = "Unknown"
+        else:
+            last_triggered = "Never"
+        
+        table.add_row(
+            str(r["problem_id"]),
+            r["title"],
+            schedule,
+            status,
+            last_triggered
+        )
+    
+    console.print(table)
+
+@app.command()
+def reminder_disable(
+    problem_id: int = typer.Argument(..., help="ID of the problem to disable reminder for")
+):
+    """Disable a reminder for a problem."""
+    init_app()
+    
+    reminder_manager = reminders.get_reminder_manager()
+    reminder = reminder_manager.get_reminder(problem_id)
+    
+    if not reminder:
+        console.print(f"[red]No reminder found for problem ID {problem_id}.[/red]")
+        return
+    
+    if reminder.enabled:
+        reminder_manager.update_reminder(problem_id, {"enabled": False})
+        console.print(f"[green]Reminder for problem ID {problem_id} disabled.[/green]")
+    else:
+        console.print(f"[yellow]Reminder for problem ID {problem_id} is already disabled.[/yellow]")
+
+@app.command()
+def reminder_enable(
+    problem_id: int = typer.Argument(..., help="ID of the problem to enable reminder for")
+):
+    """Enable a reminder for a problem."""
+    init_app()
+    
+    reminder_manager = reminders.get_reminder_manager()
+    reminder = reminder_manager.get_reminder(problem_id)
+    
+    if not reminder:
+        console.print(f"[red]No reminder found for problem ID {problem_id}.[/red]")
+        return
+    
+    if not reminder.enabled:
+        reminder_manager.update_reminder(problem_id, {"enabled": True})
+        console.print(f"[green]Reminder for problem ID {problem_id} enabled.[/green]")
+    else:
+        console.print(f"[yellow]Reminder for problem ID {problem_id} is already enabled.[/yellow]")
+
+@app.command()
+def reminder_delete(
+    problem_id: int = typer.Argument(..., help="ID of the problem to delete reminder for")
+):
+    """Delete a reminder for a problem."""
+    init_app()
+    
+    reminder_manager = reminders.get_reminder_manager()
+    reminder = reminder_manager.get_reminder(problem_id)
+    
+    if not reminder:
+        console.print(f"[red]No reminder found for problem ID {problem_id}.[/red]")
+        return
+    
+    if typer.confirm(f"Are you sure you want to delete the reminder for problem ID {problem_id}?"):
+        reminder_manager.delete_reminder(problem_id)
+        console.print(f"[green]Reminder for problem ID {problem_id} deleted.[/green]")
+
+@app.command()
+def reminder_test(
+    problem_id: int = typer.Argument(..., help="ID of the problem to test notification for")
+):
+    """Test a notification for a reminder."""
+    init_app()
+    
+    # Get the problem to verify it exists
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT title FROM problems WHERE id = ?", (problem_id,))
+    problem = cursor.fetchone()
+    conn.close()
+    
+    if not problem:
+        console.print(f"[red]Problem with ID {problem_id} not found.[/red]")
+        return
+    
+    reminder_manager = reminders.get_reminder_manager()
+    
+    # Send a test notification
+    console.print("[blue]Sending test notification...[/blue]")
+    reminder_manager.trigger_reminder(problem_id)
+    console.print("[green]Test notification sent.[/green]")x
+
 if __name__ == "__main__":
-    app()
+    # Initialize the application
+    init_app()
+    
+    # Start the app
+    try:
+        app()
+    finally:
+        # Clean up reminder scheduler when app exits
+        reminder_manager = reminders.get_reminder_manager()
+        reminder_manager.stop_scheduler()

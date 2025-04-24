@@ -10,6 +10,7 @@ A command-line tool for macOS that helps you solve problems through empathetic u
 - **Progress Tracking**: Monitor your progress with moving averages and trends
 - **AI-Driven Recommendations**: Get data-driven suggestions that adapt to your progress
 - **In-Depth Analysis**: Request detailed problem analysis from Claude Haiku
+- **Periodic Reminders**: Receive scheduled notifications to update your KPIs and track progress
 
 ## Installation
 
@@ -72,6 +73,7 @@ You'll be prompted to enter a title and description for your problem. The tool w
 2. Generate relevant KPIs tailored to your problem
 3. Suggest specific action steps
 4. Show initial recommendations
+5. Optionally set up reminders for KPI updates
 
 ### Listing your active problems
 
@@ -112,6 +114,34 @@ empathic-solver complete-step 2
 ```
 
 This marks the action step with ID 2 as completed.
+
+### Setting up reminders
+
+```bash
+empathic-solver reminder-set 1 --frequency daily --time 09:00
+```
+
+This sets a daily reminder at 9:00 AM to update KPIs for problem with ID 1.
+
+For weekly reminders, specify the days:
+```bash
+empathic-solver reminder-set 1 --frequency weekly --time 10:00 --days "Monday,Wednesday,Friday"
+```
+
+For monthly reminders, specify the day of the month:
+```bash
+empathic-solver reminder-set 1 --frequency monthly --time 15:30 --day-of-month 1
+```
+
+### Managing reminders
+
+```bash
+empathic-solver reminders-list         # List all reminders
+empathic-solver reminder-disable 1     # Temporarily disable a reminder
+empathic-solver reminder-enable 1      # Re-enable a disabled reminder
+empathic-solver reminder-delete 1      # Remove a reminder completely
+empathic-solver reminder-test 1        # Test the notification for a reminder
+```
 
 ### Adding new action steps
 
@@ -180,6 +210,7 @@ This allows you to update your API key and Claude model preferences.
    empathic-solver new
    # Enter title: "Complete website redesign"
    # Enter description: "I need to redesign our company website but I'm feeling overwhelmed by the scope of the project."
+   # Set up a reminder when prompted
    ```
 
 3. View the AI-generated KPIs and action steps:
@@ -207,6 +238,18 @@ This allows you to update your API key and Claude model preferences.
    empathic-solver complete 1
    ```
 
+## Reminder System
+
+The reminder system helps you stay on track with your problem-solving progress:
+
+- Notifications appear on your desktop when it's time to update your KPIs
+- Supports daily, weekly, and monthly schedules
+- You can customize which days of the week or day of the month
+- Reminders can be temporarily disabled or permanently deleted
+- Notifications adapt to your operating system (macOS, Windows, or Linux)
+
+When creating a new problem, you'll be prompted to set up a reminder automatically. You can also set them up later using the `reminder-set` command.
+
 ## Data Storage
 
 All your problem data is stored locally in a SQLite database at `~/.empathic_solver/problems.db`. Your Claude API key is securely stored in your system's keychain.
@@ -231,6 +274,17 @@ If you encounter any issues:
 3. Verify your Claude API key is working correctly
 4. Try running `empathic-solver configure` to update your settings
 5. Check your internet connection for AI-powered features
+
+### Reminder Issues
+
+If reminders aren't working:
+
+1. Ensure your system allows notifications from Python applications
+2. On macOS, check System Preferences > Notifications
+3. On Windows, check Settings > System > Notifications & actions
+4. Try running `empathic-solver reminder-test 1` to check notifications
+5. Make sure the application is running when reminders are scheduled
+6. If using a virtual environment, ensure it's activated
 
 ## License
 
