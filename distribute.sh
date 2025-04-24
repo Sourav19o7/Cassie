@@ -13,7 +13,7 @@ python3 -m venv "$INSTALL_DIR/venv"
 source "$INSTALL_DIR/venv/bin/activate"
 
 echo "Installing required dependencies..."
-pip install typer rich pandas numpy requests keyring
+pip install typer rich pandas numpy requests keyring schedule
 
 # Download the main Python script
 echo "Downloading Cassie script..."

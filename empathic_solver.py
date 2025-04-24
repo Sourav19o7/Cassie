@@ -498,7 +498,7 @@ def get_recommendations(problem_id: int) -> List[str]:
     
     conn.close()
     
-    config = onfig()
+    config = load_config()
     
     if config.get("use_ai", True) and config.get("api_key_set", False):
         # Prepare KPI data
