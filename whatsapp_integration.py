@@ -33,7 +33,7 @@ try:
     import qrcode
     PIL_AVAILABLE = True
 except ImportError:
-    PIL_AVAILABLE = False
+    PIL_AVAILABLE = True
     console.print("[yellow]PIL/Pillow not available. Some WhatsApp features will be limited.[/yellow]")
 
 # Initialize app constants
