@@ -11,7 +11,7 @@ import datetime
 from pathlib import Path
 import typer
 from typing import List, Dict, Optional, Union, Tuple
-from rich.console import Console
+from rich.console import Console  # Make sure this import is at the top
 from rich.table import Table
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -25,14 +25,15 @@ import io
 from PIL import Image
 import qrcode
 
-# Initialize app constants first
+# Initialize console first before using it anywhere
+console = Console()
+
+# Initialize app constants
 APP_DIR = Path.home() / ".empathic_solver"
 DB_PATH = APP_DIR / "problems.db"
 WHATSAPP_CONFIG_PATH = APP_DIR / "whatsapp_config.json"
 WHATSAPP_SESSION_PATH = APP_DIR / "whatsapp_session"
 SERVICE_NAME = "empathic-solver"
-
-console = Console()
 
 # Define SELENIUM_AVAILABLE globally before using it
 SELENIUM_AVAILABLE = False

@@ -20,6 +20,7 @@ setup(
     entry_points="""
         [console_scripts]
         empathic-solver=empathic_solver:app
+        cassie=empathic_solver:app
     """,
     python_requires=">=3.8",
     author="Sourav Dey",

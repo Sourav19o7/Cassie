@@ -64,11 +64,24 @@ fi
 
 # Install required packages
 echo "Installing required packages..."
+pip3 install --upgrade pip
 pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0 selenium webdriver-manager pillow
 
 # Check if we are in the source directory
 if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
     echo "Installing from source..."
+    
+    # Fix potential console import issue in WhatsApp integration
+    echo "Checking and fixing module dependencies..."
+    if [ -f "whatsapp_integration.py" ]; then
+        grep -q "from rich.console import Console" "whatsapp_integration.py"
+        if [ $? -ne 0 ]; then
+            # Add the missing import at the beginning of the file
+            sed -i.bak '1s/^/from rich.console import Console\n/' "whatsapp_integration.py"
+            echo "Fixed missing console import in WhatsApp integration."
+        fi
+    fi
+    
     pip3 install -e .
     
     if [ $? -ne 0 ]; then
@@ -81,8 +94,14 @@ if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
         # Copy the main script and modules
         cp empathic_solver.py "$HOME/.local/bin/empathic-solver"
         cp reminders.py "$HOME/.local/bin/"
-        cp whatsapp_integration.py "$HOME/.local/bin/"
+        if [ -f "whatsapp_integration.py" ]; then
+            cp whatsapp_integration.py "$HOME/.local/bin/"
+        fi
         chmod +x "$HOME/.local/bin/empathic-solver"
+        
+        # Create a symlink for the cassie command
+        ln -sf "$HOME/.local/bin/empathic-solver" "$HOME/.local/bin/cassie"
+        chmod +x "$HOME/.local/bin/cassie"
         
         # Add to PATH if not already there
         if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
@@ -90,6 +109,9 @@ if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
             echo "Added $HOME/.local/bin to PATH"
         fi
+        
+        # Create application directories
+        mkdir -p "$HOME/.empathic_solver"
         
         # Create WhatsApp session directories
         mkdir -p "$HOME/.empathic_solver/whatsapp_session/chrome"
@@ -110,6 +132,7 @@ if [ "$1" == "--symlink" ] || [ "$2" == "--symlink" ]; then
     
     if [ -n "$SCRIPT_PATH" ]; then
         sudo ln -sf "$SCRIPT_PATH" /usr/local/bin/empathic-solver
+        sudo ln -sf "$SCRIPT_PATH" /usr/local/bin/cassie
         
         if [ $? -ne 0 ]; then
             echo "Failed to create symlink. You may need to run this script with sudo."
@@ -127,29 +150,29 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Note: You may need to manually grant notification permissions in System Preferences > Notifications"
     
     # Create a simple AppleScript to request notification permissions
-    osascript -e 'display notification "Empathic Problem Solver installed successfully!" with title "Empathic Problem Solver"'
+    osascript -e 'display notification "Empathic Problem Solver installed successfully!" with title "Cassie CLI"'
 fi
 
 echo ""
 echo "Installation completed successfully!"
-echo "You can now use the Empathic Problem Solver CLI by running: empathic-solver"
+echo "You can now use the CLI by running: cassie or empathic-solver"
 echo ""
 echo "First-time setup:"
-echo "  empathic-solver configure   # Set up your Claude API key and preferences"
-echo "  empathic-solver configure-whatsapp  # Set up WhatsApp integration"
+echo "  cassie configure   # Set up your Claude API key and preferences"
+echo "  cassie configure-whatsapp  # Set up WhatsApp integration"
 echo ""
 echo "Try these commands:"
-echo "  empathic-solver --help      # Show help"
-echo "  empathic-solver new         # Create a new problem"
-echo "  empathic-solver list        # List all problems"
-echo "  empathic-solver scan-whatsapp  # Scan WhatsApp for tasks"
+echo "  cassie --help      # Show help"
+echo "  cassie new         # Create a new problem"
+echo "  cassie list        # List all problems"
+echo "  cassie scan-whatsapp  # Scan WhatsApp for tasks"
 echo ""
 echo "New reminder commands:"
-echo "  empathic-solver reminder-set 1      # Set a reminder for problem #1"
-echo "  empathic-solver reminders-list      # List all active reminders"
-echo "  empathic-solver reminder-disable 1  # Disable a reminder"
-echo "  empathic-solver reminder-enable 1   # Enable a reminder"
-echo "  empathic-solver reminder-delete 1   # Delete a reminder"
-echo "  empathic-solver reminder-test 1     # Test notification for problem #1"
+echo "  cassie reminder-set 1      # Set a reminder for problem #1"
+echo "  cassie reminders-list      # List all active reminders"
+echo "  cassie reminder-disable 1  # Disable a reminder"
+echo "  cassie reminder-enable 1   # Enable a reminder"
+echo "  cassie reminder-delete 1   # Delete a reminder"
+echo "  cassie reminder-test 1     # Test notification for problem #1"
 echo ""
-echo "Enjoy using Empathic Problem Solver CLI powered by Claude Haiku!"
+echo "Enjoy using Cassie CLI powered by Claude Haiku!"
