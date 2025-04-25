@@ -180,7 +180,6 @@ def configure_whatsapp():
             import pip
             pip.main(['install', 'selenium', 'webdriver-manager'])
             console.print("[green]Installed browser automation libraries successfully![/green]")
-            global SELENIUM_AVAILABLE
             SELENIUM_AVAILABLE = True
         except Exception as e:
             console.print(f"[red]Failed to install required packages: {e}[/red]")
