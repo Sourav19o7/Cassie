@@ -22,6 +22,8 @@ import time
 import threading
 import schedule
 
+# Import section in empathic_solver.py (around line 15-45)
+
 # Initialize Typer app and console first
 app = typer.Typer(help="Empathic Problem Solver CLI")
 console = Console()
@@ -37,25 +39,36 @@ WHATSAPP_AVAILABLE = False
 
 # First try to import reminders module
 try:
-    # Add the current directory to path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if current_dir not in sys.path:
-        sys.path.insert(0, current_dir)
-    
     import reminders
     REMINDERS_AVAILABLE = True
 except ImportError:
-    console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
-    REMINDERS_AVAILABLE = False
+    # Try to import from current directory
+    try:
+        # Add the current directory to path if needed
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        import reminders
+        REMINDERS_AVAILABLE = True
+    except ImportError:
+        console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
+        REMINDERS_AVAILABLE = False
 
 # Then try to import WhatsApp integration
 try:
     import whatsapp_integration
     WHATSAPP_AVAILABLE = True
 except ImportError:
-    console.print("[yellow]WhatsApp integration module not available.[/yellow]")
-    WHATSAPP_AVAILABLE = False
-
+    # Try to import from current directory
+    try:
+        # Current directory should already be in path from above
+        import whatsapp_integration
+        WHATSAPP_AVAILABLE = True
+    except ImportError:
+        console.print("[yellow]WhatsApp integration module not available.[/yellow]")
+        WHATSAPP_AVAILABLE = False
+        
 def init_app():
     """Initialize application directories and database."""
     if not APP_DIR.exists():

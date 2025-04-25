@@ -84,6 +84,9 @@ DEFAULT_MODEL = "claude-3-haiku-20240307"
 
 def init_app():
     """Initialize application directories and database."""
+
+    fix_whatsapp_module()
+
     if not APP_DIR.exists():
         APP_DIR.mkdir(parents=True)
     
@@ -150,11 +153,20 @@ def init_app():
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
 
-    # Initialize reminders
-    reminder_manager = reminders.init_reminders()
+    # Initialize reminders if available
+    if REMINDERS_AVAILABLE:
+        reminder_manager = reminders.init_reminders()
+        # Check for any past-due reminders
+        reminders.check_due_reminders()
     
-    # Check for any past-due reminders
-    reminders.check_due_reminders()
+    # Initialize WhatsApp integration if available
+    if WHATSAPP_AVAILABLE:
+        try:
+            whatsapp_integration.init_whatsapp_integration()
+            # Initialize background scanner if auto-scan is enabled
+            whatsapp_integration.init_background_scanner()
+        except Exception as e:
+            console.print(f"[yellow]Failed to initialize WhatsApp integration: {e}[/yellow]")
 
 def load_config():
     """Load the application configuration."""
@@ -1681,6 +1693,8 @@ def reminder_test(
 
 # Replace these functions in empathic_solver.py
 
+# WhatsApp command implementations
+
 @app.command()
 def configure_whatsapp():
     """Configure WhatsApp integration settings."""
@@ -1690,14 +1704,19 @@ def configure_whatsapp():
         console.print("[red]WhatsApp integration is not available.[/red]")
         console.print("[yellow]Make sure whatsapp_integration.py is in the same directory as empathic_solver.py[/yellow]")
         console.print("[yellow]You may need to install additional dependencies:[/yellow]")
-        console.print("  pip install selenium webdriver-manager")
+        console.print("  pip install selenium webdriver-manager pillow")
         return
     
-    whatsapp_integration.command_configure_whatsapp()
+    try:
+        whatsapp_integration.command_configure_whatsapp()
+    except AttributeError:
+        # Fallback if function doesn't exist in module
+        whatsapp_integration.configure_whatsapp()
 
 @app.command()
 def scan_whatsapp(
-    problem_id: Optional[int] = typer.Option(None, help="ID of the problem to associate tasks with")
+    problem_id: Optional[int] = typer.Option(None, help="ID of the problem to associate tasks with"),
+    use_export: bool = typer.Option(False, help="Use exported chat files instead of browser automation")
 ):
     """Scan WhatsApp messages for actionable tasks."""
     init_app()
@@ -1706,8 +1725,16 @@ def scan_whatsapp(
         console.print("[red]WhatsApp integration is not available.[/red]")
         console.print("[yellow]Run 'configure-whatsapp' first to set up WhatsApp integration.[/yellow]")
         return
-        
-    whatsapp_integration.command_scan_whatsapp(problem_id)
+    
+    try:    
+        if hasattr(whatsapp_integration, 'command_scan_whatsapp'):
+            whatsapp_integration.command_scan_whatsapp(problem_id)
+        else:
+            # Direct call to scan function with use_export parameter
+            whatsapp_integration.scan_whatsapp_messages(problem_id, use_export)
+    except Exception as e:
+        console.print(f"[red]Error scanning WhatsApp messages: {e}[/red]")
+        console.print("[yellow]Try running 'configure-whatsapp' to set up WhatsApp integration.[/yellow]")
 
 @app.command()
 def whatsapp_tasks(
@@ -1721,11 +1748,69 @@ def whatsapp_tasks(
     if not WHATSAPP_AVAILABLE:
         console.print("[red]WhatsApp integration is not available.[/red]")
         return
-        
-    whatsapp_integration.command_list_whatsapp_tasks(problem_id, status, limit)
-
-# Add similar checks to all other WhatsApp-related commands
-# For example:
+    
+    try:
+        if hasattr(whatsapp_integration, 'command_list_whatsapp_tasks'):
+            whatsapp_integration.command_list_whatsapp_tasks(problem_id, status, limit)
+        else:
+            # Try to access a different function that might exist
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            query = "SELECT id, problem_id, group_name, sender, task_description, status, priority FROM whatsapp_tasks"
+            params = []
+            
+            where_clauses = []
+            if problem_id is not None:
+                where_clauses.append("problem_id = ?")
+                params.append(problem_id)
+            
+            if status is not None:
+                where_clauses.append("status = ?")
+                params.append(status)
+            
+            if where_clauses:
+                query += " WHERE " + " AND ".join(where_clauses)
+            
+            query += " ORDER BY id DESC LIMIT ?"
+            params.append(limit)
+            
+            cursor.execute(query, params)
+            tasks = cursor.fetchall()
+            
+            conn.close()
+            
+            if not tasks:
+                console.print("[yellow]No WhatsApp tasks found matching the criteria.[/yellow]")
+                return
+            
+            table = Table(title="WhatsApp Tasks")
+            table.add_column("ID")
+            table.add_column("Problem")
+            table.add_column("Group")
+            table.add_column("Sender")
+            table.add_column("Task")
+            table.add_column("Status")
+            table.add_column("Priority")
+            
+            for task_id, prob_id, group, sender, desc, status, priority in tasks:
+                prob_display = str(prob_id) if prob_id else "Not assigned"
+                status_style = "green" if status == "completed" else "yellow" if status == "pending" else "blue"
+                priority_style = "red" if priority == "high" else "yellow" if priority == "medium" else "green"
+                
+                table.add_row(
+                    str(task_id),
+                    prob_display,
+                    group,
+                    sender,
+                    desc[:40] + ("..." if len(desc) > 40 else ""),
+                    f"[{status_style}]{status}[/{status_style}]",
+                    f"[{priority_style}]{priority}[/{priority_style}]"
+                )
+            
+            console.print(table)
+    except Exception as e:
+        console.print(f"[red]Error listing WhatsApp tasks: {e}[/red]")
 
 @app.command()
 def whatsapp_complete_task(
@@ -1822,6 +1907,51 @@ def whatsapp_priority(
         
     whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
 
+# This patch adds missing console import to whatsapp_integration.py if needed
+
+def fix_whatsapp_module():
+    """
+    Fix common issues in the WhatsApp integration module.
+    Run this before using WhatsApp integration.
+    """
+    import os
+    
+    # Path to the WhatsApp integration module
+    whatsapp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whatsapp_integration.py')
+    
+    if not os.path.exists(whatsapp_path):
+        print("WhatsApp integration module not found at:", whatsapp_path)
+        return False
+    
+    try:
+        # Read the file content
+        with open(whatsapp_path, 'r') as f:
+            content = f.read()
+        
+        # Check if rich.console is imported at the top
+        if 'from rich.console import Console' not in content:
+            # Add the import at the top after the docstring
+            if '"""' in content:
+                # Find the end of the module docstring
+                end_of_docstring = content.find('"""', content.find('"""') + 3) + 3
+                if end_of_docstring > 6:  # Make sure we found a proper docstring end
+                    new_content = content[:end_of_docstring] + '\n\nfrom rich.console import Console\n' + content[end_of_docstring:]
+                    
+                    # Write back the updated content
+                    with open(whatsapp_path, 'w') as f:
+                        f.write(new_content)
+                    
+                    print("Fixed missing console import in WhatsApp integration module.")
+                    return True
+        
+        # Already has the import
+        return True
+    
+    except Exception as e:
+        print(f"Error fixing WhatsApp module: {e}")
+        return False
+
+
 if __name__ == "__main__":
     # Initialize the application
     init_app()
@@ -1831,5 +1961,21 @@ if __name__ == "__main__":
         app()
     finally:
         # Clean up reminder scheduler when app exits
-        reminder_manager = reminders.get_reminder_manager()
-        reminder_manager.stop_scheduler()
+        if REMINDERS_AVAILABLE:
+            reminder_manager = reminders.get_reminder_manager()
+            reminder_manager.stop_scheduler()
+        
+        # Clean up WhatsApp background scanner if running
+        if WHATSAPP_AVAILABLE:
+            try:
+                # Check if we have a background scanner thread running
+                if hasattr(whatsapp_integration, 'background_scanner_thread') and whatsapp_integration.background_scanner_thread:
+                    # Signal thread to stop
+                    config = whatsapp_integration.load_whatsapp_config()
+                    config["auto_scan"] = False
+                    whatsapp_integration.save_whatsapp_config(config)
+                    # Wait for a moment to let thread exit naturally
+                    import time
+                    time.sleep(1)
+            except:
+                pass
