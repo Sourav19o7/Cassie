@@ -13,7 +13,7 @@ python3 -m venv "$INSTALL_DIR/venv"
 source "$INSTALL_DIR/venv/bin/activate"
 
 echo "Installing required dependencies..."
-pip install typer rich pandas numpy requests keyring schedule
+pip install typer rich pandas numpy requests keyring schedule selenium webdriver-manager pillow
 
 # Download the main Python scripts
 echo "Downloading Cassie scripts..."
@@ -46,16 +46,23 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo "Added $HOME/.local/bin to PATH. You may need to restart your terminal or run 'source ~/.bash_profile'"
 fi
 
+# Create WhatsApp session directories
+mkdir -p "$INSTALL_DIR/whatsapp_session/chrome"
+mkdir -p "$INSTALL_DIR/whatsapp_session/firefox"
+mkdir -p "$INSTALL_DIR/whatsapp_session/edge"
+
 echo ""
 echo "Installation completed successfully!"
 echo "You can now use Cassie by running: cassie"
 echo ""
 echo "First-time setup:"
 echo "  cassie configure   # Set up your Claude API key and preferences"
+echo "  cassie configure-whatsapp  # Set up WhatsApp integration"
 echo ""
 echo "Try these commands:"
 echo "  cassie --help      # Show help"
 echo "  cassie new         # Create a new problem"
 echo "  cassie list        # List all problems"
+echo "  cassie scan-whatsapp  # Scan WhatsApp for tasks"
 echo ""
 echo "Enjoy using Cassie!"

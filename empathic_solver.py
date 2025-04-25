@@ -1,29 +1,4 @@
 #!/usr/bin/env python3
-
-import os
-import sys
-import json
-import sqlite3
-import datetime
-import typer
-from typing import List, Dict, Optional, Any
-from rich.console import Console
-from rich.table import Table
-from rich.markdown import Markdown
-from rich.panel import Panel
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import requests
-import textwrap
-import getpass
-import keyring
-import time
-
-import threading
-import schedule
-from typing import List, Optional
-
 # Fix the import logic
 # First define a flag for WhatsApp availability
 WHATSAPP_AVAILABLE = False
@@ -44,8 +19,30 @@ try:
             import whatsapp_integration
             WHATSAPP_AVAILABLE = True
         except ImportError:
-            # WhatsApp integration isn't available
-            WHATSAPP_AVAILABLE = False
+            # Check if we can install the requirements on the fly
+            try:
+                import subprocess
+                import sys
+                
+                # Only try to install packages if this is the first run
+                if not Path(APP_DIR / "installed_whatsapp_deps").exists():
+                    console.print("[yellow]Installing WhatsApp integration dependencies...[/yellow]")
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium", "webdriver-manager", "pillow"])
+                    
+                    # Try importing again after installing
+                    try:
+                        import whatsapp_integration
+                        WHATSAPP_AVAILABLE = True
+                        # Create marker file to indicate we installed dependencies
+                        Path(APP_DIR / "installed_whatsapp_deps").touch()
+                    except ImportError:
+                        WHATSAPP_AVAILABLE = False
+                else:
+                    # We've tried installing before, but still can't import
+                    WHATSAPP_AVAILABLE = False
+            except Exception as e:
+                console.print(f"[yellow]Could not install WhatsApp dependencies automatically: {e}[/yellow]")
+                WHATSAPP_AVAILABLE = False
 except Exception as e:
     print(f"Warning: Some modules could not be imported: {e}")
     # Set defaults in case of import errors
@@ -1802,7 +1799,7 @@ def whatsapp_priority(
     if not WHATSAPP_AVAILABLE:
         console.print("[red]WhatsApp integration is not available.[/red]")
         return
-        
+
     whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
 
 if __name__ == "__main__":

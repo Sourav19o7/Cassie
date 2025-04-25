@@ -64,7 +64,7 @@ fi
 
 # Install required packages
 echo "Installing required packages..."
-pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0
+pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0 selenium webdriver-manager pillow
 
 # Check if we are in the source directory
 if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
@@ -78,9 +78,10 @@ if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
             mkdir -p "$HOME/.local/bin"
         fi
         
-        # Copy the main script and reminder module
+        # Copy the main script and modules
         cp empathic_solver.py "$HOME/.local/bin/empathic-solver"
         cp reminders.py "$HOME/.local/bin/"
+        cp whatsapp_integration.py "$HOME/.local/bin/"
         chmod +x "$HOME/.local/bin/empathic-solver"
         
         # Add to PATH if not already there
@@ -89,6 +90,11 @@ if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
             echo "Added $HOME/.local/bin to PATH"
         fi
+        
+        # Create WhatsApp session directories
+        mkdir -p "$HOME/.empathic_solver/whatsapp_session/chrome"
+        mkdir -p "$HOME/.empathic_solver/whatsapp_session/firefox"
+        mkdir -p "$HOME/.empathic_solver/whatsapp_session/edge"
     fi
 else
     echo "Source files not found. Please make sure you're running this script from the correct directory."
@@ -130,12 +136,13 @@ echo "You can now use the Empathic Problem Solver CLI by running: empathic-solve
 echo ""
 echo "First-time setup:"
 echo "  empathic-solver configure   # Set up your Claude API key and preferences"
+echo "  empathic-solver configure-whatsapp  # Set up WhatsApp integration"
 echo ""
 echo "Try these commands:"
 echo "  empathic-solver --help      # Show help"
 echo "  empathic-solver new         # Create a new problem"
 echo "  empathic-solver list        # List all problems"
-echo "  empathic-solver analyze 1   # Get AI analysis of problem #1"
+echo "  empathic-solver scan-whatsapp  # Scan WhatsApp for tasks"
 echo ""
 echo "New reminder commands:"
 echo "  empathic-solver reminder-set 1      # Set a reminder for problem #1"

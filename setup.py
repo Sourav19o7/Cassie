@@ -13,6 +13,9 @@ setup(
         "requests>=2.28.0",
         "keyring>=23.0.0",
         "schedule>=1.2.0",
+        "selenium>=4.0.0",
+        "webdriver-manager>=3.8.0",
+        "pillow>=9.0.0",
     ],
     entry_points="""
         [console_scripts]
