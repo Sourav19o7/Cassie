@@ -1347,7 +1347,7 @@ def version():
     """Display the version of Empathic Problem Solver."""
     console.print("Empathic Problem Solver CLI v1.1.0")
     console.print("Powered by Claude Haiku AI")
-    console.print("Created by Your Name")
+    console.print("Created by Sourav Dey")
     console.print("Copyright (c) 2025")
 
 @app.command()

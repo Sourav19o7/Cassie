@@ -31,7 +31,6 @@ APP_DIR = Path.home() / ".empathic_solver"
 DB_PATH = APP_DIR / "problems.db"
 CONFIG_PATH = APP_DIR / "config.json"
 
-# Fix the import logic
 # Define flags for module availability
 REMINDERS_AVAILABLE = False
 WHATSAPP_AVAILABLE = False
@@ -57,6 +56,81 @@ except ImportError:
     console.print("[yellow]WhatsApp integration module not available.[/yellow]")
     WHATSAPP_AVAILABLE = False
 
+def init_app():
+    """Initialize application directories and database."""
+    if not APP_DIR.exists():
+        APP_DIR.mkdir(parents=True)
+    
+    # Initialize database
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Create tables if they don't exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS problems (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_date TEXT NOT NULL,
+        status TEXT DEFAULT 'active'
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS kpis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        target_value REAL,
+        current_value REAL DEFAULT 0,
+        FOREIGN KEY (problem_id) REFERENCES problems (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS action_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        FOREIGN KEY (problem_id) REFERENCES problems (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS progress_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        kpi_id INTEGER NOT NULL,
+        value REAL NOT NULL,
+        timestamp TEXT NOT NULL,
+        FOREIGN KEY (problem_id) REFERENCES problems (id),
+        FOREIGN KEY (kpi_id) REFERENCES kpis (id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    
+    # Create default config if it doesn't exist
+    if not CONFIG_PATH.exists():
+        config = {
+            "model": DEFAULT_MODEL,
+            "use_ai": True,
+            "max_tokens": 500,
+            "api_key_set": False,
+            "reminders_enabled": True
+        }
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    # Initialize reminders only if available
+    if REMINDERS_AVAILABLE:
+        reminder_manager = reminders.init_reminders()
+        # Check for any past-due reminders
+        reminders.check_due_reminders()
+
+def load_config():
     """Load the application configuration."""
     if not CONFIG_PATH.exists():
         init_app()
@@ -68,7 +142,6 @@ def save_config(config):
     """Save the application configuration."""
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
-
 def get_api_key():
     """Get the Claude API key from keyring."""
     api_key = keyring.get_password(SERVICE_NAME, "claude_api_key")
@@ -1247,7 +1320,7 @@ def version():
     """Display the version of Empathic Problem Solver."""
     console.print("Empathic Problem Solver CLI v1.1.0")
     console.print("Powered by Claude Haiku AI")
-    console.print("Created by Your Name")
+    console.print("Created by Sourav Dey")
     console.print("Copyright (c) 2025")
 
 @app.command()

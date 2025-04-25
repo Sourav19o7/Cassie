@@ -40,8 +40,10 @@ if [ -f "whatsapp_integration.py" ]; then
     cp whatsapp_integration.py whatsapp_integration.py.bak
 fi
 
-# Fix import statements in empathic_solver.py
-echo "Fixing import statements..."
+# Instead of trying to modify the file in pieces, let's create a new file with all our changes
+echo "Creating modified empathic_solver.py..."
+
+# Create a complete modified version from scratch
 cat > empathic_solver.py << 'EOF'
 #!/usr/bin/env python3
 
@@ -76,7 +78,6 @@ APP_DIR = Path.home() / ".empathic_solver"
 DB_PATH = APP_DIR / "problems.db"
 CONFIG_PATH = APP_DIR / "config.json"
 
-# Fix the import logic
 # Define flags for module availability
 REMINDERS_AVAILABLE = False
 WHATSAPP_AVAILABLE = False
@@ -102,14 +103,103 @@ except ImportError:
     console.print("[yellow]WhatsApp integration module not available.[/yellow]")
     WHATSAPP_AVAILABLE = False
 
+def init_app():
+    """Initialize application directories and database."""
+    if not APP_DIR.exists():
+        APP_DIR.mkdir(parents=True)
+    
+    # Initialize database
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Create tables if they don't exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS problems (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_date TEXT NOT NULL,
+        status TEXT DEFAULT 'active'
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS kpis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        target_value REAL,
+        current_value REAL DEFAULT 0,
+        FOREIGN KEY (problem_id) REFERENCES problems (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS action_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        FOREIGN KEY (problem_id) REFERENCES problems (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS progress_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        problem_id INTEGER NOT NULL,
+        kpi_id INTEGER NOT NULL,
+        value REAL NOT NULL,
+        timestamp TEXT NOT NULL,
+        FOREIGN KEY (problem_id) REFERENCES problems (id),
+        FOREIGN KEY (kpi_id) REFERENCES kpis (id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    
+    # Create default config if it doesn't exist
+    if not CONFIG_PATH.exists():
+        config = {
+            "model": DEFAULT_MODEL,
+            "use_ai": True,
+            "max_tokens": 500,
+            "api_key_set": False,
+            "reminders_enabled": True
+        }
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    # Initialize reminders only if available
+    if REMINDERS_AVAILABLE:
+        reminder_manager = reminders.init_reminders()
+        # Check for any past-due reminders
+        reminders.check_due_reminders()
+
+def load_config():
+    """Load the application configuration."""
+    if not CONFIG_PATH.exists():
+        init_app()
+    
+    with open(CONFIG_PATH, 'r') as f:
+        return json.load(f)
+
+def save_config(config):
+    """Save the application configuration."""
+    with open(CONFIG_PATH, 'w') as f:
+        json.dump(config, f, indent=2)
 EOF
 
-# Append the rest of the original file after the new import section
-tail -n +160 empathic_solver.py.bak >> empathic_solver.py
+# Now append the rest of the original file, starting after these functions
+# Use grep to find the line number after the save_config function
+LINE_NUM=$(grep -n "def get_api_key" empathic_solver.py.bak | cut -d: -f1)
 
-# Update init_app function to check for REMINDERS_AVAILABLE
-sed -i.tmp 's/reminders.init_reminders()/REMINDERS_AVAILABLE and reminders.init_reminders()/g' empathic_solver.py
-sed -i.tmp 's/reminders.check_due_reminders()/REMINDERS_AVAILABLE and reminders.check_due_reminders()/g' empathic_solver.py
+# Append the rest of the file starting from that line
+tail -n +$LINE_NUM empathic_solver.py.bak >> empathic_solver.py
+
+# Add missing constants if needed
+sed -i.tmp '1,50s/DEFAULT_MODEL = "claude-3-haiku-20240307"/DEFAULT_MODEL = "claude-3-haiku-20240307"/' empathic_solver.py
 
 echo "Building standalone executable..."
 
