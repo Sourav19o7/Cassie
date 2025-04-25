@@ -1,4 +1,29 @@
 #!/usr/bin/env python3
+
+import os
+import sys
+import json
+import sqlite3
+import datetime
+import typer
+from typing import List, Dict, Optional, Any
+from rich.console import Console
+from rich.table import Table
+from rich.markdown import Markdown
+from rich.panel import Panel
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import requests
+import textwrap
+import getpass
+import keyring
+import time
+
+import threading
+import schedule
+from typing import List, Optional
+
 # Fix the import logic
 # First define a flag for WhatsApp availability
 WHATSAPP_AVAILABLE = False
@@ -1799,7 +1824,7 @@ def whatsapp_priority(
     if not WHATSAPP_AVAILABLE:
         console.print("[red]WhatsApp integration is not available.[/red]")
         return
-
+        
     whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
 
 if __name__ == "__main__":
