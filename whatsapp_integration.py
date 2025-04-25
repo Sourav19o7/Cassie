@@ -171,6 +171,7 @@ def save_whatsapp_config(config):
 
 def configure_whatsapp():
     """Configure WhatsApp integration settings."""
+    global SELENIUM_AVAILABLE
     config = load_whatsapp_config()
     
     # Check if Selenium is available
@@ -180,7 +181,20 @@ def configure_whatsapp():
             import pip
             pip.main(['install', 'selenium', 'webdriver-manager'])
             console.print("[green]Installed browser automation libraries successfully![/green]")
-            SELENIUM_AVAILABLE = True
+            
+            # Try importing again after installation
+            try:
+                from selenium import webdriver
+                from selenium.webdriver.chrome.service import Service
+                from selenium.webdriver.chrome.options import Options
+                from selenium.webdriver.common.by import By
+                from selenium.webdriver.support.ui import WebDriverWait
+                from selenium.webdriver.support import expected_conditions as EC
+                from selenium.common.exceptions import TimeoutException, NoSuchElementException
+                from webdriver_manager.chrome import ChromeDriverManager
+                SELENIUM_AVAILABLE = True
+            except ImportError:
+                SELENIUM_AVAILABLE = False
         except Exception as e:
             console.print(f"[red]Failed to install required packages: {e}[/red]")
             console.print("[yellow]You can manually install them with: pip install selenium webdriver-manager[/yellow]")
@@ -322,6 +336,7 @@ def configure_whatsapp():
 
 def test_whatsapp_connection():
     """Test the WhatsApp Web connection."""
+    global SELENIUM_AVAILABLE
     config = load_whatsapp_config()
     
     if not config.get("whatsapp_web_enabled", False):
