@@ -82,6 +82,7 @@ WHATSAPP_SELECTORS = {
     ],
     # Chat list elements
     'chat_list': [
+        '//div[contains(@class, "_2AOIt")]',  # Updated based on reference
         '//div[@data-testid="chat-list"]',
         '//div[contains(@class, "_3YS_f")]',
         '//div[contains(@class, "chat-list")]',
@@ -95,8 +96,8 @@ WHATSAPP_SELECTORS = {
     ],
     # Message text
     'message_text': [
+        './/div[contains(@class, "_21Ahp")]',  # Updated based on reference (priority)
         './/div[contains(@class, "selectable-text")]',
-        './/div[contains(@class, "_21Ahp")]',
         './/span[contains(@class, "selectable-text")]'
     ],
     # Message sender
@@ -122,6 +123,11 @@ WHATSAPP_SELECTORS = {
         '//div[contains(@class, "_1EUay")]//div[@contenteditable="true"]',
         '//div[contains(@class, "lexical-rich-text-input")]//div[@contenteditable="true"]',
         '//div[contains(@title, "Search")]'
+    ],
+    # Contact/group selector (by name)
+    'contact_by_name': [
+        '//span[@title="{}"]',  # Added from reference code
+        '//span[contains(text(),"{}")]'
     ]
 }
 
@@ -287,7 +293,18 @@ def test_whatsapp_connection():
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option("useAutomationExtension", False)
             
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            try:
+                # Try the newer method with Service
+                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            except Exception as e:
+                console.print(f"[yellow]Error with newer ChromeDriver method: {e}. Trying fallback method...[/yellow]")
+                # Fallback to direct executable_path (for older versions)
+                try:
+                    driver = webdriver.Chrome(options=options)
+                except Exception:
+                    console.print("[red]Could not initialize Chrome driver. Please ensure Chrome is installed.[/red]")
+                    return False
+                
         elif browser_type == "firefox":
             options = webdriver.FirefoxOptions()
             if headless:
@@ -330,15 +347,23 @@ def test_whatsapp_connection():
             if found_qr:
                 # Wait for login with longer timeout
                 chat_list_found = False
-                for selector in WHATSAPP_SELECTORS['chat_list']:
-                    try:
-                        WebDriverWait(driver, 120).until(
-                            EC.presence_of_element_located((By.XPATH, selector))
-                        )
-                        chat_list_found = True
-                        break
-                    except TimeoutException:
-                        continue
+                # First try CSS class selector (from reference code)
+                try:
+                    WebDriverWait(driver, 120).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, '_2AOIt'))
+                    )
+                    chat_list_found = True
+                except TimeoutException:
+                    # Fall back to our list of XPath selectors
+                    for selector in WHATSAPP_SELECTORS['chat_list']:
+                        try:
+                            WebDriverWait(driver, 30).until(
+                                EC.presence_of_element_located((By.XPATH, selector))
+                            )
+                            chat_list_found = True
+                            break
+                        except TimeoutException:
+                            continue
                 
                 if chat_list_found:
                     console.print("[green]Successfully connected to WhatsApp Web![/green]")
@@ -358,15 +383,23 @@ def test_whatsapp_connection():
         
         # If QR code not found, check if already logged in
         chat_list_found = False
-        for selector in WHATSAPP_SELECTORS['chat_list']:
-            try:
-                WebDriverWait(driver, 30).until(
-                    EC.presence_of_element_located((By.XPATH, selector))
-                )
-                chat_list_found = True
-                break
-            except TimeoutException:
-                continue
+        # First try CSS class selector (from reference code)
+        try:
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CLASS_NAME, '_2AOIt'))
+            )
+            chat_list_found = True
+        except TimeoutException:
+            # Fall back to our list of XPath selectors
+            for selector in WHATSAPP_SELECTORS['chat_list']:
+                try:
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                    chat_list_found = True
+                    break
+                except TimeoutException:
+                    continue
         
         if chat_list_found:
             console.print("[green]Already authenticated with WhatsApp Web![/green]")
@@ -492,7 +525,18 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option("useAutomationExtension", False)
             
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            try:
+                # Try the newer method with Service
+                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            except Exception as e:
+                console.print(f"[yellow]Error with newer ChromeDriver method: {e}. Trying fallback method...[/yellow]")
+                # Fallback to direct initialization (for older versions)
+                try:
+                    driver = webdriver.Chrome(options=options)
+                except Exception as chrome_error:
+                    console.print(f"[red]Could not initialize Chrome driver: {chrome_error}[/red]")
+                    return use_fallback_method(problem_id)
+                
         elif browser_type == "firefox":
             options = webdriver.FirefoxOptions()
             if headless:
@@ -576,30 +620,44 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
                     search_box.send_keys(group_name)
                     time.sleep(3)  # Wait for search results
                     
-                    # Look for the group in search results
-                    group_elements = driver.find_elements(By.XPATH, f"//span[contains(text(),'{group_name}')]")
+                    # Look for the group in search results using the contact selector from reference code
+                    for selector_template in WHATSAPP_SELECTORS['contact_by_name']:
+                        try:
+                            selector = selector_template.format(group_name)
+                            contact_element = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, selector))
+                            )
+                            contact_element.click()
+                            group_found = True
+                            break
+                        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException):
+                            continue
                     
-                    if group_elements:
-                        # Try to click the first matching group
-                        for element in group_elements:
-                            try:
-                                # Try to find the clickable parent
-                                parent = element
-                                for _ in range(5):  # Look up to 5 levels up
-                                    if parent.tag_name == 'div' and 'chat-list' in parent.get_attribute('class'):
-                                        parent.click()
+                    # If not found with specific selector, try the more general approach
+                    if not group_found:
+                        group_elements = driver.find_elements(By.XPATH, f"//span[contains(text(),'{group_name}')]")
+                        
+                        if group_elements:
+                            # Try to click the first matching group
+                            for element in group_elements:
+                                try:
+                                    # Try to find the clickable parent
+                                    parent = element
+                                    for _ in range(5):  # Look up to 5 levels up
+                                        if parent.tag_name == 'div' and 'chat-list' in parent.get_attribute('class'):
+                                            parent.click()
+                                            group_found = True
+                                            break
+                                        parent = parent.find_element(By.XPATH, '..')
+                                    
+                                    if not group_found:
+                                        # Direct click attempt
+                                        element.click()
                                         group_found = True
-                                        break
-                                    parent = parent.find_element(By.XPATH, '..')
-                                
-                                if not group_found:
-                                    # Direct click attempt
-                                    element.click()
-                                    group_found = True
-                                
-                                break
-                            except (NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException, StaleElementReferenceException):
-                                continue
+                                    
+                                    break
+                                except (NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException, StaleElementReferenceException):
+                                    continue
                     
                     if not group_found:
                         console.print(f"[yellow]Group not found or couldn't be clicked: {group_name}[/yellow]")
@@ -608,16 +666,22 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
                     # Wait for messages to load
                     time.sleep(3)
                     
-                    # Extract messages
-                    messages = []
-                    for selector in WHATSAPP_SELECTORS['message']:
-                        try:
-                            message_elements = driver.find_elements(By.XPATH, selector)
-                            if message_elements:
-                                messages = message_elements
-                                break
-                        except NoSuchElementException:
-                            continue
+                    # Extract messages - first try the class from reference code
+                    try:
+                        messages = driver.find_elements(By.CLASS_NAME, '_21Ahp')
+                        console.print(f"[cyan]Found {len(messages)} messages using reference class.[/cyan]")
+                    except NoSuchElementException:
+                        # Fall back to our selectors
+                        messages = []
+                        for selector in WHATSAPP_SELECTORS['message']:
+                            try:
+                                message_elements = driver.find_elements(By.XPATH, selector)
+                                if message_elements:
+                                    messages = message_elements
+                                    console.print(f"[cyan]Found {len(messages)} messages using selector: {selector}[/cyan]")
+                                    break
+                            except NoSuchElementException:
+                                continue
                     
                     # Limit to the specified maximum number of messages
                     messages = messages[-min(max_messages, len(messages)):]
