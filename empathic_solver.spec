@@ -2,14 +2,23 @@
 
 block_cipher = None
 
+# Add the modules as data files
+added_files = [
+    ('reminders.py', '.'),
+    ('whatsapp_integration.py', '.')
+]
+
 a = Analysis(
     ['empathic_solver.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=['typer', 'rich.console', 'rich.table', 'rich.markdown', 'rich.panel', 
-                  'rich.progress', 'pandas', 'numpy', 'sqlite3', 'datetime', 'pathlib',
-                  'requests', 'keyring', 'getpass', 'json', 'textwrap'],
+    datas=added_files,
+    hiddenimports=[
+        'typer', 'rich.console', 'rich.table', 'rich.markdown', 'rich.panel', 
+        'rich.progress', 'pandas', 'numpy', 'sqlite3', 'datetime', 'pathlib',
+        'requests', 'keyring', 'getpass', 'json', 'textwrap', 'schedule',
+        'threading', 'time', 'reminders', 'whatsapp_integration', 'PIL', 'PIL.Image'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -19,6 +28,7 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(

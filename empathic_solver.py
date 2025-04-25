@@ -19,59 +19,54 @@ import textwrap
 import getpass
 import keyring
 import time
-
 import threading
 import schedule
-from typing import List, Optional
+
+# Initialize Typer app and console first
+app = typer.Typer(help="Empathic Problem Solver CLI")
+console = Console()
+
+# Create application data directory constants
+APP_DIR = Path.home() / ".empathic_solver"
+DB_PATH = APP_DIR / "problems.db"
+CONFIG_PATH = APP_DIR / "config.json"
 
 # Fix the import logic
-# First define a flag for WhatsApp availability
+# Define flags for module availability
+REMINDERS_AVAILABLE = False
 WHATSAPP_AVAILABLE = False
 
+# First try to import reminders module
 try:
-    # First try to import reminders
+    import reminders
+    REMINDERS_AVAILABLE = True
+except ImportError:
+    # Try to import from current directory
     try:
-        from . import reminders
-    except ImportError:
-        import reminders
+        # Add the current directory to path if needed
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
         
-    # Then try to import WhatsApp integration
+        import reminders
+        REMINDERS_AVAILABLE = True
+    except ImportError:
+        console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
+        REMINDERS_AVAILABLE = False
+
+# Then try to import WhatsApp integration
+try:
+    import whatsapp_integration
+    WHATSAPP_AVAILABLE = True
+except ImportError:
+    # Try to import from current directory
     try:
-        from . import whatsapp_integration
+        # Current directory should already be in path from above
+        import whatsapp_integration
         WHATSAPP_AVAILABLE = True
     except ImportError:
-        try:
-            import whatsapp_integration
-            WHATSAPP_AVAILABLE = True
-        except ImportError:
-            # Check if we can install the requirements on the fly
-            try:
-                import subprocess
-                import sys
-                
-                # Only try to install packages if this is the first run
-                if not Path(APP_DIR / "installed_whatsapp_deps").exists():
-                    console.print("[yellow]Installing WhatsApp integration dependencies...[/yellow]")
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium", "webdriver-manager", "pillow"])
-                    
-                    # Try importing again after installing
-                    try:
-                        import whatsapp_integration
-                        WHATSAPP_AVAILABLE = True
-                        # Create marker file to indicate we installed dependencies
-                        Path(APP_DIR / "installed_whatsapp_deps").touch()
-                    except ImportError:
-                        WHATSAPP_AVAILABLE = False
-                else:
-                    # We've tried installing before, but still can't import
-                    WHATSAPP_AVAILABLE = False
-            except Exception as e:
-                console.print(f"[yellow]Could not install WhatsApp dependencies automatically: {e}[/yellow]")
-                WHATSAPP_AVAILABLE = False
-except Exception as e:
-    print(f"Warning: Some modules could not be imported: {e}")
-    # Set defaults in case of import errors
-    WHATSAPP_AVAILABLE = False
+        console.print("[yellow]WhatsApp integration module not available.[/yellow]")
+        WHATSAPP_AVAILABLE = False
 
 # Initialize Typer app
 app = typer.Typer(help="Empathic Problem Solver CLI")
