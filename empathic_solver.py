@@ -159,7 +159,9 @@ if __name__ == "__main__":
             except Exception as e:
                 logging.error(f"Error stopping WhatsApp background scanner: {e}")
         
-        logging.info("Application shutdown complete")@app.command()
+        logging.info("Application shutdown complete")
+
+@app.command()
 def scan_whatsapp(
     problem_id: Optional[int] = typer.Option(None, help="ID of the problem to associate tasks with"),
     use_export: bool = typer.Option(False, help="Use exported chat files instead of browser automation")
