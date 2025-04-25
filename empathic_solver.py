@@ -304,7 +304,6 @@ def configure_whatsapp():
                     sys.path.insert(0, str(APP_DIR))
                 try:
                     import whatsapp_integration
-                    global WHATSAPP_AVAILABLE
                     WHATSAPP_AVAILABLE = True
                     console.print("[green]Successfully loaded WhatsApp integration module![/green]")
                 except ImportError as e:
@@ -498,6 +497,8 @@ CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-3-haiku-20240307"
 
 def init_app():
+    global WHATSAPP_AVAILABLE
+    
     """Initialize application directories and database."""
     # Fix WhatsApp module issues if available but not working correctly
     fix_whatsapp_module()
