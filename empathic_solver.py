@@ -1,3 +1,29 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import json
+import sqlite3
+import datetime
+import typer
+from typing import List, Dict, Optional, Any
+from rich.console import Console
+from rich.table import Table
+from rich.markdown import Markdown
+from rich.panel import Panel
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import requests
+import textwrap
+import getpass
+import keyring
+import time
+import threading
+import schedule
+import logging
+
+
 if __name__ == "__main__":
     # Set up logging to help debug issues
     import logging
@@ -266,7 +292,7 @@ def configure_whatsapp():
     init_app()
     
     global WHATSAPP_AVAILABLE
-    
+
     # Check if module is unavailable
     if not WHATSAPP_AVAILABLE:
         console.print("[red]WhatsApp integration is not available.[/red]")
