@@ -29,15 +29,31 @@ import threading
 import schedule
 from typing import List, Optional
 
+# Fix the import logic
 try:
-    from . import reminders
-except ImportError:
-    import reminders
-
-try:
-    from . import whatsapp_integration
-except ImportError:
-    import whatsapp_integration
+    # First try to import as a package
+    try:
+        from . import reminders
+    except ImportError:
+        import reminders
+        
+    # Then try to import WhatsApp integration
+    try:
+        from . import whatsapp_integration
+    except ImportError:
+        try:
+            import whatsapp_integration
+        except ImportError:
+            # If WhatsApp integration isn't available, set a flag
+            WHATSAPP_AVAILABLE = False
+        else:
+            WHATSAPP_AVAILABLE = True
+    else:
+        WHATSAPP_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Some modules could not be imported: {e}")
+    # Set defaults in case of import errors
+    WHATSAPP_AVAILABLE = False
 
 # Initialize Typer app
 app = typer.Typer(help="Empathic Problem Solver CLI")
