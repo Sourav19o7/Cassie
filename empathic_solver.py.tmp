@@ -613,6 +613,66 @@ def get_recommendations(problem_id: int) -> List[str]:
     
     return recommendations[:5]  # Limit to top 5 recommendations
 
+def fix_whatsapp_module():
+    """
+    Fix common issues in the WhatsApp integration module.
+    Run this before using WhatsApp integration.
+    """
+    import os
+    
+    # Check multiple possible paths for WhatsApp integration module
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whatsapp_integration.py'),
+        os.path.join(str(APP_DIR), 'whatsapp_integration.py'),
+        os.path.join(os.path.expanduser('~'), '.empathic_solver', 'whatsapp_integration.py')
+    ]
+    
+    whatsapp_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            whatsapp_path = path
+            break
+    
+    if not whatsapp_path:
+        console.print("[yellow]WhatsApp integration module not found in any expected location.[/yellow]")
+        return False
+    
+    try:
+        # Read the file content
+        with open(whatsapp_path, 'r') as f:
+            content = f.read()
+        
+        # Check if rich.console is imported at the top
+        if 'from rich.console import Console' not in content:
+            # Add the import at the beginning of the file
+            if '"""' in content:
+                # Find the end of the module docstring
+                end_of_docstring = content.find('"""', content.find('"""') + 3) + 3
+                if end_of_docstring > 6:  # Make sure we found a proper docstring end
+                    new_content = content[:end_of_docstring] + '\n\nfrom rich.console import Console\n' + content[end_of_docstring:]
+                    
+                    # Write back the updated content
+                    with open(whatsapp_path, 'w') as f:
+                        f.write(new_content)
+                    
+                    console.print("[green]Fixed missing console import in WhatsApp integration module.[/green]")
+                    return True
+            else:
+                # No docstring, add at the very beginning
+                new_content = 'from rich.console import Console\n\n' + content
+                with open(whatsapp_path, 'w') as f:
+                    f.write(new_content)
+                console.print("[green]Fixed missing console import in WhatsApp integration module.[/green]")
+                return True
+        
+        # Already has the import
+        return True
+    
+    except Exception as e:
+        console.print(f"[yellow]Error fixing WhatsApp module: {e}[/yellow]")
+        return False
+
+# Command implementations for the CLI
 @app.command()
 def configure():
     """Configure the application settings."""
@@ -678,7 +738,7 @@ def configure():
     console.print("[green]Configuration updated successfully.[/green]")
 
     # If reminders were enabled, ask if user wants to set one now
-    if reminders_enabled:
+    if reminders_enabled and REMINDERS_AVAILABLE:
         if typer.confirm("Would you like to set up a reminder for a problem now?"):
             # List available problems
             conn = sqlite3.connect(DB_PATH)
@@ -790,7 +850,7 @@ def new(title: str = typer.Option(..., prompt=True, help="Short title for your p
     display_problem(problem_id)
     
     # Ask if user wants to set up a reminder
-    if config.get("reminders_enabled", True):
+    if config.get("reminders_enabled", True) and REMINDERS_AVAILABLE:
         if typer.confirm("Would you like to set up a reminder for this problem?"):
             # Ask for frequency
             frequency_options = ["daily", "weekly", "monthly"]
@@ -1319,7 +1379,7 @@ def import_problem(
 @app.command()
 def version():
     """Display the version of Empathic Problem Solver."""
-    console.print("Empathic Problem Solver CLI v1.1.0")
+    console.print("Empathic Problem Solver CLI v1.3.0")
     console.print("Powered by Claude Haiku AI")
     console.print("Created by Sourav Dey")
     console.print("Copyright (c) 2025")
