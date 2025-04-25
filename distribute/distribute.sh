@@ -20,6 +20,7 @@ echo "Downloading Cassie scripts..."
 mkdir -p "$INSTALL_DIR/src"
 curl -L "https://sourav19o7.github.io/Cassie/empathic_solver.py" -o "$INSTALL_DIR/src/empathic_solver.py"
 curl -L "https://sourav19o7.github.io/Cassie/reminders.py" -o "$INSTALL_DIR/src/reminders.py"
+curl -L "https://sourav19o7.github.io/Cassie/whatsapp_integration.py" -o "$INSTALL_DIR/src/whatsapp_integration.py"
 
 if [ $? -ne 0 ]; then
     echo "Failed to download scripts. Please check your internet connection."
