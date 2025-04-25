@@ -28,13 +28,13 @@ import sys
 # Initialize console first before using it anywhere
 console = Console()
 
-try:
-    from PIL import Image
-    import qrcode
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = True
-    console.print("[yellow]PIL/Pillow not available. Some WhatsApp features will be limited.[/yellow]")
+# try:
+#     from PIL import Image
+#     import qrcode
+#     PIL_AVAILABLE = True
+# except ImportError:
+#     PIL_AVAILABLE = True
+#     console.print("[yellow]PIL/Pillow not available. Some WhatsApp features will be limited.[/yellow]")
 
 # Initialize app constants
 APP_DIR = Path.home() / ".empathic_solver"
