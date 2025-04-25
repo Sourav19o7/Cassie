@@ -1,28 +1,19 @@
 #!/bin/bash
 
 # Empathic Problem Solver CLI Installer
-# This script installs the Empathic Problem Solver CLI on macOS
+# This script installs the Empathic Problem Solver CLI on macOS or Linux
 
 echo "Empathic Problem Solver CLI Installer"
 echo "======================================"
 
+# Ensure app directory exists
+APP_DIR="$HOME/.empathic_solver"
+mkdir -p "$APP_DIR"
+
 # Check if Python is installed
 if ! command -v python3 &> /dev/null; then
-    echo "Python 3 is not installed. Installing Python..."
-    
-    # Check if Homebrew is installed
-    if ! command -v brew &> /dev/null; then
-        echo "Homebrew is not installed. Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    fi
-    
-    # Install Python with Homebrew
-    brew install python
-    
-    if [ $? -ne 0 ]; then
-        echo "Failed to install Python. Please install Python 3.8 or later manually."
-        exit 1
-    fi
+    echo "Python 3 is not installed. Please install Python 3.8 or later."
+    exit 1
 fi
 
 # Check Python version
@@ -49,117 +40,87 @@ if ! command -v pip3 &> /dev/null; then
     fi
 fi
 
-# Create a virtual environment (optional)
-if [ "$1" == "--venv" ]; then
-    echo "Creating a virtual environment..."
-    python3 -m venv empathic-solver-env
-    
-    if [ $? -ne 0 ]; then
-        echo "Failed to create virtual environment. Proceeding with system-wide installation."
-    else
-        echo "Activating virtual environment..."
-        source empathic-solver-env/bin/activate
-    fi
-fi
-
 # Install required packages
 echo "Installing required packages..."
 pip3 install --upgrade pip
-pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0 selenium webdriver-manager pillow
+pip3 install typer>=0.9.0 rich>=13.4.2 pandas>=2.0.3 numpy>=1.24.3 requests>=2.28.0 keyring>=23.0.0 schedule>=1.2.0
 
-# Check if we are in the source directory
-if [ -f "empathic_solver.py" ] && [ -f "setup.py" ]; then
-    echo "Installing from source..."
-    
-    # Fix potential console import issue in WhatsApp integration
-    echo "Checking and fixing module dependencies..."
-    if [ -f "whatsapp_integration.py" ]; then
-        grep -q "from rich.console import Console" "whatsapp_integration.py"
-        if [ $? -ne 0 ]; then
-            # Add the missing import at the beginning of the file
-            sed -i.bak '1s/^/from rich.console import Console\n/' "whatsapp_integration.py"
-            echo "Fixed missing console import in WhatsApp integration."
-        fi
+# Ask about WhatsApp integration
+if [ "$1" != "--no-prompt" ]; then
+    read -p "Install WhatsApp integration dependencies? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installing WhatsApp integration dependencies..."
+        pip3 install selenium webdriver-manager pillow
     fi
-    
-    pip3 install -e .
+fi
+
+# Copy files to the app directory
+echo "Copying files to $APP_DIR..."
+cp empathic_solver.py "$APP_DIR/"
+cp reminders.py "$APP_DIR/"
+if [ -f "whatsapp_integration.py" ]; then
+    cp whatsapp_integration.py "$APP_DIR/"
+fi
+
+# Make the main script executable
+chmod +x "$APP_DIR/empathic_solver.py"
+
+# Create WhatsApp session directories
+mkdir -p "$APP_DIR/whatsapp_session/chrome"
+mkdir -p "$APP_DIR/whatsapp_session/firefox"
+mkdir -p "$APP_DIR/whatsapp_session/edge"
+
+# Create launcher scripts
+echo "Creating launcher scripts..."
+mkdir -p "$HOME/.local/bin"
+
+# Create the main launcher script
+cat > "$HOME/.local/bin/cassie" << 'EOF'
+#!/bin/bash
+APP_DIR="$HOME/.empathic_solver"
+cd "$APP_DIR"
+python3 "$APP_DIR/empathic_solver.py" "$@"
+EOF
+
+chmod +x "$HOME/.local/bin/cassie"
+
+# Create symlink for empathic-solver command
+ln -sf "$HOME/.local/bin/cassie" "$HOME/.local/bin/empathic-solver"
+chmod +x "$HOME/.local/bin/empathic-solver"
+
+# Add to PATH if needed
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bash_profile"
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+    echo "Added $HOME/.local/bin to PATH. You may need to restart your terminal or run 'source ~/.bash_profile' or 'source ~/.zshrc'"
+fi
+
+# Test the installation
+echo "Testing installation..."
+"$HOME/.local/bin/cassie" version 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "[WARNING] Installation test failed. Trying direct execution..."
+    cd "$APP_DIR" && python3 empathic_solver.py version
     
     if [ $? -ne 0 ]; then
-        echo "Installation from source failed. Installing from individual files..."
-        # Check if destination directory exists
-        if [ ! -d "$HOME/.local/bin" ]; then
-            mkdir -p "$HOME/.local/bin"
-        fi
-        
-        # Copy the main script and modules
-        cp empathic_solver.py "$HOME/.local/bin/empathic-solver"
-        cp reminders.py "$HOME/.local/bin/"
-        if [ -f "whatsapp_integration.py" ]; then
-            cp whatsapp_integration.py "$HOME/.local/bin/"
-        fi
-        chmod +x "$HOME/.local/bin/empathic-solver"
-        
-        # Create a symlink for the cassie command
-        ln -sf "$HOME/.local/bin/empathic-solver" "$HOME/.local/bin/cassie"
-        chmod +x "$HOME/.local/bin/cassie"
-        
-        # Add to PATH if not already there
-        if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bash_profile"
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
-            echo "Added $HOME/.local/bin to PATH"
-        fi
-        
-        # Create application directories
-        mkdir -p "$HOME/.empathic_solver"
-        
-        # Create WhatsApp session directories
-        mkdir -p "$HOME/.empathic_solver/whatsapp_session/chrome"
-        mkdir -p "$HOME/.empathic_solver/whatsapp_session/firefox"
-        mkdir -p "$HOME/.empathic_solver/whatsapp_session/edge"
+        echo "[ERROR] Installation failed. Please check the error messages above."
+    else
+        echo "[WARNING] Script works when executed directly, but launcher script failed."
+        echo "You can run the application with: cd $APP_DIR && python3 empathic_solver.py"
     fi
 else
-    echo "Source files not found. Please make sure you're running this script from the correct directory."
-    exit 1
-fi
-
-# Create symlink in /usr/local/bin for easier access (optional)
-if [ "$1" == "--symlink" ] || [ "$2" == "--symlink" ]; then
-    echo "Creating symlink in /usr/local/bin..."
-    
-    # Get the path to the installed script
-    SCRIPT_PATH=$(which empathic-solver 2>/dev/null)
-    
-    if [ -n "$SCRIPT_PATH" ]; then
-        sudo ln -sf "$SCRIPT_PATH" /usr/local/bin/empathic-solver
-        sudo ln -sf "$SCRIPT_PATH" /usr/local/bin/cassie
-        
-        if [ $? -ne 0 ]; then
-            echo "Failed to create symlink. You may need to run this script with sudo."
-        else
-            echo "Symlink created successfully."
-        fi
-    else
-        echo "Could not find the installed script. Skipping symlink creation."
-    fi
-fi
-
-# Check if we need to set up notification permissions on macOS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "Setting up notification permissions for macOS..."
-    echo "Note: You may need to manually grant notification permissions in System Preferences > Notifications"
-    
-    # Create a simple AppleScript to request notification permissions
-    osascript -e 'display notification "Empathic Problem Solver installed successfully!" with title "Cassie CLI"'
+    echo "[SUCCESS] Installation test passed!"
 fi
 
 echo ""
-echo "Installation completed successfully!"
+echo "Installation completed!"
 echo "You can now use the CLI by running: cassie or empathic-solver"
 echo ""
 echo "First-time setup:"
 echo "  cassie configure   # Set up your Claude API key and preferences"
-echo "  cassie configure-whatsapp  # Set up WhatsApp integration"
+echo "  cassie configure-whatsapp  # Set up WhatsApp integration (if installed)"
 echo ""
 echo "Try these commands:"
 echo "  cassie --help      # Show help"

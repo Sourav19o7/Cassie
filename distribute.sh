@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Cassie CLI Installer
-VERSION="1.1.0"
+VERSION="1.2.0"
 DOWNLOAD_URL="https://sourav19o7.github.io/Cassie"
 
 echo "Cassie CLI (Claude Haiku Edition) Installer v$VERSION"
@@ -11,13 +11,27 @@ echo "==================================================="
 INSTALL_DIR="$HOME/.local/share/cassie"
 mkdir -p "$INSTALL_DIR"
 
-echo "Creating Python virtual environment..."
-python3 -m venv "$INSTALL_DIR/venv"
-source "$INSTALL_DIR/venv/bin/activate"
+# Ensure .empathic_solver directory exists
+APP_DIR="$HOME/.empathic_solver"
+mkdir -p "$APP_DIR"
 
-echo "Installing required dependencies..."
-pip install --upgrade pip
-pip install typer rich pandas numpy requests keyring schedule selenium webdriver-manager pillow
+# Create Python virtual environment
+echo "Creating Python virtual environment..."
+python3 -m venv "$INSTALL_DIR/venv" || {
+    echo "Failed to create virtual environment. Trying with system Python..."
+    mkdir -p "$INSTALL_DIR/src"
+}
+
+# Check if venv creation was successful
+if [ -d "$INSTALL_DIR/venv" ]; then
+    source "$INSTALL_DIR/venv/bin/activate"
+    echo "Installing required dependencies in virtual environment..."
+    pip install --upgrade pip
+    pip install typer rich pandas numpy requests keyring schedule selenium webdriver-manager pillow
+else
+    echo "Installing required dependencies system-wide..."
+    pip3 install --user typer rich pandas numpy requests keyring schedule selenium webdriver-manager pillow
+fi
 
 # Download the main Python scripts
 echo "Downloading Cassie scripts..."
@@ -32,7 +46,14 @@ download_with_retry() {
     
     while [ $retry -lt $max_retries ]; do
         echo "Downloading $url to $output (attempt $(($retry + 1))/$max_retries)..."
-        curl -L "$url" -o "$output" && return 0
+        if command -v curl &> /dev/null; then
+            curl -L "$url" -o "$output" && return 0
+        elif command -v wget &> /dev/null; then
+            wget "$url" -O "$output" && return 0
+        else
+            echo "Neither curl nor wget is available. Please install one of them and try again."
+            return 1
+        fi
         
         retry=$(($retry + 1))
         echo "Download failed, retrying in 2 seconds..."
@@ -48,24 +69,55 @@ download_with_retry "$DOWNLOAD_URL/empathic_solver.py" "$INSTALL_DIR/src/empathi
 download_with_retry "$DOWNLOAD_URL/reminders.py" "$INSTALL_DIR/src/reminders.py" || exit 1
 download_with_retry "$DOWNLOAD_URL/whatsapp_integration.py" "$INSTALL_DIR/src/whatsapp_integration.py" || exit 1
 
-# Ensure imports work correctly by modifying files if needed
-echo "Ensuring correct imports..."
+# Copy scripts to app directory for easier imports
+cp "$INSTALL_DIR/src/empathic_solver.py" "$APP_DIR/empathic_solver.py"
+cp "$INSTALL_DIR/src/reminders.py" "$APP_DIR/reminders.py"
+cp "$INSTALL_DIR/src/whatsapp_integration.py" "$APP_DIR/whatsapp_integration.py"
 
 # Fix import issues in empathic_solver.py if necessary
+echo "Ensuring correct imports..."
 sed -i.bak 's/from \. import reminders/import reminders/g' "$INSTALL_DIR/src/empathic_solver.py"
 sed -i.bak 's/from \. import whatsapp_integration/import whatsapp_integration/g' "$INSTALL_DIR/src/empathic_solver.py"
 
-# Create application data directory
-mkdir -p "$HOME/.empathic_solver"
+# Make scripts executable
+chmod +x "$INSTALL_DIR/src/empathic_solver.py"
+chmod +x "$APP_DIR/empathic_solver.py"
+
+# Create WhatsApp session directories
+echo "Creating WhatsApp session directories..."
+mkdir -p "$APP_DIR/whatsapp_session/chrome"
+mkdir -p "$APP_DIR/whatsapp_session/firefox"
+mkdir -p "$APP_DIR/whatsapp_session/edge"
 
 # Create launcher script
-echo "Creating launcher..."
+echo "Creating launcher scripts..."
 mkdir -p "$HOME/.local/bin"
+
+# Create launcher that tries both approaches (venv and app_dir)
 cat > "$HOME/.local/bin/cassie" << 'EOF'
 #!/bin/bash
-cd "$HOME/.local/share/cassie/src"  # Change to the directory containing the scripts
-source "$HOME/.local/share/cassie/venv/bin/activate"
-python "$HOME/.local/share/cassie/src/empathic_solver.py" "$@"
+
+# Define paths
+INSTALL_DIR="$HOME/.local/share/cassie"
+APP_DIR="$HOME/.empathic_solver"
+VENV_PYTHON="$INSTALL_DIR/venv/bin/python"
+SCRIPT_PATH="$INSTALL_DIR/src/empathic_solver.py"
+APP_SCRIPT_PATH="$APP_DIR/empathic_solver.py"
+
+# Check if virtual environment exists and use it
+if [ -f "$VENV_PYTHON" ]; then
+    cd "$INSTALL_DIR/src"  # Change to the directory containing the scripts
+    source "$INSTALL_DIR/venv/bin/activate"
+    "$VENV_PYTHON" "$SCRIPT_PATH" "$@"
+elif [ -f "$APP_SCRIPT_PATH" ]; then
+    # Fallback to app directory if venv doesn't exist
+    cd "$APP_DIR"
+    python3 "$APP_SCRIPT_PATH" "$@"
+else
+    # Final fallback
+    cd "$INSTALL_DIR/src"
+    python3 "$SCRIPT_PATH" "$@"
+fi
 EOF
 
 chmod +x "$HOME/.local/bin/cassie"
@@ -81,17 +133,27 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo "Added $HOME/.local/bin to PATH. You may need to restart your terminal or run 'source ~/.bash_profile' or 'source ~/.zshrc'"
 fi
 
-# Create WhatsApp session directories
-mkdir -p "$HOME/.empathic_solver/whatsapp_session/chrome"
-mkdir -p "$HOME/.empathic_solver/whatsapp_session/firefox"
-mkdir -p "$HOME/.empathic_solver/whatsapp_session/edge"
-
 # Test the installation
 echo "Testing installation..."
 "$HOME/.local/bin/cassie" version 2>/dev/null
 
 if [ $? -ne 0 ]; then
-    echo "[WARNING] Installation test failed. Please check the installation manually."
+    echo "[WARNING] Installation test failed. Trying to fix common issues..."
+    
+    # Try to fix any permission issues
+    chmod +x "$INSTALL_DIR/src/empathic_solver.py"
+    chmod +x "$HOME/.local/bin/cassie"
+    chmod +x "$HOME/.local/bin/empathic-solver"
+    
+    # Try again
+    "$HOME/.local/bin/cassie" version 2>/dev/null
+    
+    if [ $? -ne 0 ]; then
+        echo "[WARNING] Installation still failing. Please try running these commands manually:"
+        echo "  cd $APP_DIR && python3 empathic_solver.py version"
+    else
+        echo "[SUCCESS] Fixed installation issues!"
+    fi
 else
     echo "[SUCCESS] Installation test passed!"
 fi

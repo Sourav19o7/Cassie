@@ -22,8 +22,6 @@ import time
 import threading
 import schedule
 
-# Import section in empathic_solver.py (around line 15-45)
-
 # Initialize Typer app and console first
 app = typer.Typer(help="Empathic Problem Solver CLI")
 console = Console()
@@ -39,36 +37,25 @@ WHATSAPP_AVAILABLE = False
 
 # First try to import reminders module
 try:
+    # Add the current directory to path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
     import reminders
     REMINDERS_AVAILABLE = True
 except ImportError:
-    # Try to import from current directory
-    try:
-        # Add the current directory to path if needed
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        if current_dir not in sys.path:
-            sys.path.insert(0, current_dir)
-        
-        import reminders
-        REMINDERS_AVAILABLE = True
-    except ImportError:
-        console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
-        REMINDERS_AVAILABLE = False
+    console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
+    REMINDERS_AVAILABLE = False
 
 # Then try to import WhatsApp integration
 try:
     import whatsapp_integration
     WHATSAPP_AVAILABLE = True
 except ImportError:
-    # Try to import from current directory
-    try:
-        # Current directory should already be in path from above
-        import whatsapp_integration
-        WHATSAPP_AVAILABLE = True
-    except ImportError:
-        console.print("[yellow]WhatsApp integration module not available.[/yellow]")
-        WHATSAPP_AVAILABLE = False
-        
+    console.print("[yellow]WhatsApp integration module not available.[/yellow]")
+    WHATSAPP_AVAILABLE = False
+
 def init_app():
     """Initialize application directories and database."""
     if not APP_DIR.exists():
@@ -752,40 +739,6 @@ def new(title: str = typer.Option(..., prompt=True, help="Short title for your p
     
     # Check if API key is set, prompt if needed
     config = load_config()
-    if config.get("reminders_enabled", True):
-        if typer.confirm("Would you like to set up a reminder for this problem?"):
-            # Ask for frequency
-            frequency_options = ["daily", "weekly", "monthly"]
-            frequency_idx = typer.prompt(
-                "Select reminder frequency:\n1. Daily\n2. Weekly\n3. Monthly\nEnter choice (1-3)",
-                default="1"
-            )
-            
-            try:
-                frequency = frequency_options[int(frequency_idx) - 1]
-            except:
-                frequency = "daily"
-                console.print("[yellow]Invalid choice. Using daily frequency.[/yellow]")
-            
-            # Ask for time
-            time = typer.prompt("Enter time for reminder (HH:MM)", default="09:00")
-            
-            # Handle weekly/monthly specific options
-            days = None
-            day_of_month = None
-            
-            if frequency == "weekly":
-                days_input = typer.prompt("Enter days of week (comma-separated, e.g. Monday,Wednesday,Friday)", default="Monday")
-                days = days_input.split(",")
-            elif frequency == "monthly":
-                day_of_month = typer.prompt("Enter day of month (1-28)", default="1", type=int)
-            
-            # Create the reminder
-            try:
-                reminder_set(problem_id, frequency, time, days, day_of_month)
-            except Exception as e:
-                console.print(f"[red]Error setting reminder: {e}[/red]")
-
     if config.get("use_ai", True) and not config.get("api_key_set", False):
         console.print("[yellow]Claude API key is not set. AI features will be limited.[/yellow]")
         if typer.confirm("Would you like to set your Claude API key now?"):
@@ -835,6 +788,41 @@ def new(title: str = typer.Option(..., prompt=True, help="Short title for your p
     
     # Display the new problem
     display_problem(problem_id)
+    
+    # Ask if user wants to set up a reminder
+    if config.get("reminders_enabled", True):
+        if typer.confirm("Would you like to set up a reminder for this problem?"):
+            # Ask for frequency
+            frequency_options = ["daily", "weekly", "monthly"]
+            frequency_idx = typer.prompt(
+                "Select reminder frequency:\n1. Daily\n2. Weekly\n3. Monthly\nEnter choice (1-3)",
+                default="1"
+            )
+            
+            try:
+                frequency = frequency_options[int(frequency_idx) - 1]
+            except:
+                frequency = "daily"
+                console.print("[yellow]Invalid choice. Using daily frequency.[/yellow]")
+            
+            # Ask for time
+            time = typer.prompt("Enter time for reminder (HH:MM)", default="09:00")
+            
+            # Handle weekly/monthly specific options
+            days = None
+            day_of_month = None
+            
+            if frequency == "weekly":
+                days_input = typer.prompt("Enter days of week (comma-separated, e.g. Monday,Wednesday,Friday)", default="Monday")
+                days = days_input.split(",")
+            elif frequency == "monthly":
+                day_of_month = typer.prompt("Enter day of month (1-28)", default="1", type=int)
+            
+            # Create the reminder
+            try:
+                reminder_set(problem_id, frequency, time, days, day_of_month)
+            except Exception as e:
+                console.print(f"[red]Error setting reminder: {e}[/red]")
 
 @app.command()
 def list():
@@ -1442,6 +1430,10 @@ def reminder_set(
     """Set a reminder to update KPIs for a problem."""
     init_app()
     
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
+    
     # Get the problem to verify it exists
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -1534,6 +1526,10 @@ def reminders_list():
     """List all active reminders."""
     init_app()
     
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
+    
     reminder_manager = reminders.get_reminder_manager()
     reminder_list = reminder_manager.list_reminders()
     
@@ -1589,6 +1585,10 @@ def reminder_disable(
     """Disable a reminder for a problem."""
     init_app()
     
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
+    
     reminder_manager = reminders.get_reminder_manager()
     reminder = reminder_manager.get_reminder(problem_id)
     
@@ -1608,6 +1608,10 @@ def reminder_enable(
 ):
     """Enable a reminder for a problem."""
     init_app()
+    
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
     
     reminder_manager = reminders.get_reminder_manager()
     reminder = reminder_manager.get_reminder(problem_id)
@@ -1629,6 +1633,10 @@ def reminder_delete(
     """Delete a reminder for a problem."""
     init_app()
     
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
+    
     reminder_manager = reminders.get_reminder_manager()
     reminder = reminder_manager.get_reminder(problem_id)
     
@@ -1647,6 +1655,10 @@ def reminder_test(
     """Test a notification for a reminder."""
     init_app()
     
+    if not REMINDERS_AVAILABLE:
+        console.print("[red]Reminders functionality is not available.[/red]")
+        return
+    
     # Get the problem to verify it exists
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -1664,158 +1676,3 @@ def reminder_test(
     console.print("[blue]Sending test notification...[/blue]")
     reminder_manager.trigger_reminder(problem_id)
     console.print("[green]Test notification sent.[/green]")
-
-# Replace these functions in empathic_solver.py
-
-@app.command()
-def configure_whatsapp():
-    """Configure WhatsApp integration settings."""
-    init_app()
-    
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        console.print("[yellow]Make sure whatsapp_integration.py is in the same directory as empathic_solver.py[/yellow]")
-        console.print("[yellow]You may need to install additional dependencies:[/yellow]")
-        console.print("  pip install selenium webdriver-manager")
-        return
-    
-    whatsapp_integration.command_configure_whatsapp()
-
-@app.command()
-def scan_whatsapp(
-    problem_id: Optional[int] = typer.Option(None, help="ID of the problem to associate tasks with")
-):
-    """Scan WhatsApp messages for actionable tasks."""
-    init_app()
-    
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        console.print("[yellow]Run 'configure-whatsapp' first to set up WhatsApp integration.[/yellow]")
-        return
-        
-    whatsapp_integration.command_scan_whatsapp(problem_id)
-
-@app.command()
-def whatsapp_tasks(
-    problem_id: Optional[int] = typer.Option(None, help="Filter tasks by problem ID"),
-    status: Optional[str] = typer.Option(None, help="Filter tasks by status (pending/completed/converted)"),
-    limit: int = typer.Option(20, help="Maximum number of tasks to show")
-):
-    """List tasks extracted from WhatsApp messages."""
-    init_app()
-    
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-        
-    whatsapp_integration.command_list_whatsapp_tasks(problem_id, status, limit)
-
-# Add similar checks to all other WhatsApp-related commands
-# For example:
-
-@app.command()
-def whatsapp_complete_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to mark as completed")
-):
-    """Mark a WhatsApp task as completed."""
-    init_app()
-    
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-        
-    whatsapp_integration.command_complete_whatsapp_task(task_id)
-
-# Apply the same pattern to all other WhatsApp commands
-
-@app.command()
-def whatsapp_pending_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to mark as pending")
-):
-    """Mark a WhatsApp task as pending."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-
-    whatsapp_integration.command_pending_whatsapp_task(task_id)
-
-@app.command()
-def whatsapp_assign_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to assign"),
-    problem_id: int = typer.Argument(..., help="ID of the problem to assign the task to")
-):
-    """Assign a WhatsApp task to a specific problem."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-
-    whatsapp_integration.command_assign_whatsapp_task(task_id, problem_id)
-
-@app.command()
-def whatsapp_convert_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to convert to an action step")
-):
-    """Convert a WhatsApp task to an action step for its assigned problem."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-
-    whatsapp_integration.command_convert_whatsapp_task(task_id)
-
-@app.command()
-def whatsapp_view_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to view details for")
-):
-    """View detailed information about a WhatsApp task."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-
-    whatsapp_integration.command_view_whatsapp_task(task_id)
-
-@app.command()
-def whatsapp_delete_task(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to delete")
-):
-    """Delete a WhatsApp task."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-
-    whatsapp_integration.command_delete_whatsapp_task(task_id)
-
-@app.command()
-def whatsapp_priority(
-    task_id: int = typer.Argument(..., help="ID of the WhatsApp task to update"),
-    priority: str = typer.Argument(..., help="New priority (high/medium/low)")
-):
-    """Update the priority of a WhatsApp task."""
-    init_app()
-
-    if not WHATSAPP_AVAILABLE:
-        console.print("[red]WhatsApp integration is not available.[/red]")
-        return
-        
-    whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
-
-if __name__ == "__main__":
-    # Initialize the application
-    init_app()
-    
-    # Start the app
-    try:
-        app()
-    finally:
-        # Clean up reminder scheduler when app exits
-        reminder_manager = reminders.get_reminder_manager()
-        reminder_manager.stop_scheduler()
