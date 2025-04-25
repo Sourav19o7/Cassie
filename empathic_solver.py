@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 
+# Import all required modules first
 import os
 import sys
 import json
 import sqlite3
 import datetime
 import typer
+import logging
 from typing import List, Dict, Optional, Any
 from rich.console import Console
 from rich.table import Table
@@ -21,7 +24,88 @@ import keyring
 import time
 import threading
 import schedule
-import logging
+
+# Initialize Typer app and console first
+app = typer.Typer(help="Empathic Problem Solver CLI")
+console = Console()
+
+# Create application data directory constants
+APP_DIR = Path.home() / ".empathic_solver"
+DB_PATH = APP_DIR / "problems.db"
+CONFIG_PATH = APP_DIR / "config.json"
+
+# Ensure directory exists for all subsequent operations
+if not APP_DIR.exists():
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename=os.path.join(str(APP_DIR), 'empathic_solver.log')
+)
+
+# Add the current directory to the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Add the app directory to the Python path
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+
+# Define flags for module availability
+REMINDERS_AVAILABLE = False
+WHATSAPP_AVAILABLE = False
+
+# First try to import reminders module
+try:
+    import reminders
+    REMINDERS_AVAILABLE = True
+except ImportError:
+    try:
+        # Copy reminders.py to app directory if it exists in current directory
+        reminders_path = os.path.join(current_dir, 'reminders.py')
+        app_reminders_path = os.path.join(APP_DIR, 'reminders.py')
+        
+        if os.path.exists(reminders_path) and not os.path.exists(app_reminders_path):
+            import shutil
+            shutil.copy2(reminders_path, app_reminders_path)
+            
+            # Try importing again
+            sys.path.insert(0, str(APP_DIR))
+            import reminders
+            REMINDERS_AVAILABLE = True
+    except ImportError:
+        console.print("[yellow]Warning: reminders module could not be imported.[/yellow]")
+        REMINDERS_AVAILABLE = False
+
+# Then try to import WhatsApp integration
+try:
+    import whatsapp_integration
+    WHATSAPP_AVAILABLE = True
+except ImportError:
+    try:
+        # Copy whatsapp_integration.py to app directory if it exists in current directory
+        whatsapp_path = os.path.join(current_dir, 'whatsapp_integration.py')
+        app_whatsapp_path = os.path.join(APP_DIR, 'whatsapp_integration.py')
+        
+        if os.path.exists(whatsapp_path) and not os.path.exists(app_whatsapp_path):
+            import shutil
+            shutil.copy2(whatsapp_path, app_whatsapp_path)
+            
+            # Try importing again
+            sys.path.insert(0, str(APP_DIR))
+            import whatsapp_integration
+            WHATSAPP_AVAILABLE = True
+    except ImportError:
+        console.print("[yellow]WhatsApp integration module not available.[/yellow]")
+        WHATSAPP_AVAILABLE = False
+
+# Constants
+SERVICE_NAME = "empathic-solver"
+CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
+DEFAULT_MODEL = "claude-3-haiku-20240307"
 
 
 if __name__ == "__main__":
