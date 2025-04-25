@@ -528,10 +528,73 @@ def test_whatsapp_connection():
         console.print("[red]Browser automation libraries not available. Cannot test connection.[/red]")
         return False
     
-    # For now, just return success to avoid breaking the flow
-    console.print("[yellow]WhatsApp connection test skipped (fallback mode).[/yellow]")
-    return True
-
+    console.print("[cyan]Testing WhatsApp Web connection...[/cyan]")
+    
+    try:
+        browser_type = config.get("browser_type", "chrome")
+        headless = False  # Always use visible mode for testing
+        
+        # Initialize the browser
+        if browser_type == "chrome":
+            options = webdriver.ChromeOptions()
+            if headless:
+                options.add_argument("--headless")
+            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "chrome"))
+            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        elif browser_type == "firefox":
+            options = webdriver.FirefoxOptions()
+            if headless:
+                options.add_argument("--headless")
+            options.add_argument("--profile")
+            options.add_argument(str(WHATSAPP_SESSION_PATH / "firefox"))
+            driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
+        elif browser_type == "edge":
+            options = webdriver.EdgeOptions()
+            if headless:
+                options.add_argument("--headless")
+            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "edge"))
+            driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
+        else:
+            console.print(f"[red]Unsupported browser type: {browser_type}[/red]")
+            return False
+        
+        # Open WhatsApp Web
+        driver.get("https://web.whatsapp.com/")
+        
+        # Wait for QR code or main interface
+        try:
+            # Check if the QR code is present (needs login)
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, '//div[contains(@data-testid, "qrcode")]'))
+            )
+            console.print("[yellow]Please scan the QR code with your phone to authenticate.[/yellow]")
+            
+            # Wait for login
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.XPATH, '//div[contains(@data-testid, "chat-list")]'))
+            )
+            console.print("[green]Successfully connected to WhatsApp Web![/green]")
+            driver.quit()
+            return True
+            
+        except TimeoutException:
+            # If QR code not found, check if already logged in
+            try:
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.XPATH, '//div[contains(@data-testid, "chat-list")]'))
+                )
+                console.print("[green]Already authenticated with WhatsApp Web![/green]")
+                driver.quit()
+                return True
+            except TimeoutException:
+                console.print("[red]Could not connect to WhatsApp Web. Please try again.[/red]")
+                driver.quit()
+                return False
+    
+    except Exception as e:
+        console.print(f"[red]Error connecting to WhatsApp Web: {str(e)}[/red]")
+        return False
+    
 def command_list_whatsapp_tasks(problem_id=None, status=None, limit=20):
     """CLI command to list WhatsApp tasks."""
     console.print("[cyan]Listing WhatsApp tasks...[/cyan]")
