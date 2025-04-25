@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Empathic Problem Solver CLI - A personal agent that helps solve problems through
-empathetic understanding, KPI tracking, and data-driven recommendations.
-Powered by Claude Haiku for AI-driven insights.
-"""
 
 import os
 import sys
@@ -30,8 +25,11 @@ import schedule
 from typing import List, Optional
 
 # Fix the import logic
+# First define a flag for WhatsApp availability
+WHATSAPP_AVAILABLE = False
+
 try:
-    # First try to import as a package
+    # First try to import reminders
     try:
         from . import reminders
     except ImportError:
@@ -40,16 +38,14 @@ try:
     # Then try to import WhatsApp integration
     try:
         from . import whatsapp_integration
+        WHATSAPP_AVAILABLE = True
     except ImportError:
         try:
             import whatsapp_integration
-        except ImportError:
-            # If WhatsApp integration isn't available, set a flag
-            WHATSAPP_AVAILABLE = False
-        else:
             WHATSAPP_AVAILABLE = True
-    else:
-        WHATSAPP_AVAILABLE = True
+        except ImportError:
+            # WhatsApp integration isn't available
+            WHATSAPP_AVAILABLE = False
 except Exception as e:
     print(f"Warning: Some modules could not be imported: {e}")
     # Set defaults in case of import errors
@@ -1666,11 +1662,20 @@ def reminder_test(
     reminder_manager.trigger_reminder(problem_id)
     console.print("[green]Test notification sent.[/green]")
 
+# Replace these functions in empathic_solver.py
 
 @app.command()
 def configure_whatsapp():
     """Configure WhatsApp integration settings."""
     init_app()
+    
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        console.print("[yellow]Make sure whatsapp_integration.py is in the same directory as empathic_solver.py[/yellow]")
+        console.print("[yellow]You may need to install additional dependencies:[/yellow]")
+        console.print("  pip install selenium webdriver-manager")
+        return
+    
     whatsapp_integration.command_configure_whatsapp()
 
 @app.command()
@@ -1679,6 +1684,12 @@ def scan_whatsapp(
 ):
     """Scan WhatsApp messages for actionable tasks."""
     init_app()
+    
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        console.print("[yellow]Run 'configure-whatsapp' first to set up WhatsApp integration.[/yellow]")
+        return
+        
     whatsapp_integration.command_scan_whatsapp(problem_id)
 
 @app.command()
@@ -1689,7 +1700,15 @@ def whatsapp_tasks(
 ):
     """List tasks extracted from WhatsApp messages."""
     init_app()
+    
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+        
     whatsapp_integration.command_list_whatsapp_tasks(problem_id, status, limit)
+
+# Add similar checks to all other WhatsApp-related commands
+# For example:
 
 @app.command()
 def whatsapp_complete_task(
@@ -1697,7 +1716,14 @@ def whatsapp_complete_task(
 ):
     """Mark a WhatsApp task as completed."""
     init_app()
+    
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+        
     whatsapp_integration.command_complete_whatsapp_task(task_id)
+
+# Apply the same pattern to all other WhatsApp commands
 
 @app.command()
 def whatsapp_pending_task(
@@ -1705,6 +1731,11 @@ def whatsapp_pending_task(
 ):
     """Mark a WhatsApp task as pending."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+
     whatsapp_integration.command_pending_whatsapp_task(task_id)
 
 @app.command()
@@ -1714,6 +1745,11 @@ def whatsapp_assign_task(
 ):
     """Assign a WhatsApp task to a specific problem."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+
     whatsapp_integration.command_assign_whatsapp_task(task_id, problem_id)
 
 @app.command()
@@ -1722,6 +1758,11 @@ def whatsapp_convert_task(
 ):
     """Convert a WhatsApp task to an action step for its assigned problem."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+
     whatsapp_integration.command_convert_whatsapp_task(task_id)
 
 @app.command()
@@ -1730,6 +1771,11 @@ def whatsapp_view_task(
 ):
     """View detailed information about a WhatsApp task."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+
     whatsapp_integration.command_view_whatsapp_task(task_id)
 
 @app.command()
@@ -1738,6 +1784,11 @@ def whatsapp_delete_task(
 ):
     """Delete a WhatsApp task."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+
     whatsapp_integration.command_delete_whatsapp_task(task_id)
 
 @app.command()
@@ -1747,6 +1798,11 @@ def whatsapp_priority(
 ):
     """Update the priority of a WhatsApp task."""
     init_app()
+
+    if not WHATSAPP_AVAILABLE:
+        console.print("[red]WhatsApp integration is not available.[/red]")
+        return
+        
     whatsapp_integration.command_update_whatsapp_task_priority(task_id, priority)
 
 if __name__ == "__main__":
