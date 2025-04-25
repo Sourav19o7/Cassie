@@ -265,6 +265,8 @@ def configure_whatsapp():
     """Configure WhatsApp integration settings."""
     init_app()
     
+    global WHATSAPP_AVAILABLE
+    
     # Check if module is unavailable
     if not WHATSAPP_AVAILABLE:
         console.print("[red]WhatsApp integration is not available.[/red]")
@@ -497,8 +499,6 @@ CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-3-haiku-20240307"
 
 def init_app():
-    global WHATSAPP_AVAILABLE
-    
     """Initialize application directories and database."""
     # Fix WhatsApp module issues if available but not working correctly
     fix_whatsapp_module()
