@@ -24,6 +24,7 @@ import threading
 import base64
 import io
 import sys
+import random
 
 # Initialize console first before using it anywhere
 console = Console()
@@ -52,7 +53,8 @@ try:
         NoSuchElementException, 
         StaleElementReferenceException,
         ElementNotInteractableException,
-        ElementClickInterceptedException
+        ElementClickInterceptedException,
+        WebDriverException
     )
     
     # Try different webdriver managers based on browser type
@@ -72,62 +74,86 @@ except ImportError:
     # SELENIUM_AVAILABLE remains False
     pass
 
-# Updated WhatsApp Web selectors - valid as of April 2025
+# Updated WhatsApp Web selectors for 2025 (more comprehensive)
 WHATSAPP_SELECTORS = {
     # QR code element
     'qr_code': [
         '//div[contains(@data-testid, "qrcode")]',
         '//canvas[contains(@aria-label, "Scan me!")]',
-        '//div[contains(@class, "_19vUU")]'
+        '//div[contains(@class, "_19vUU")]',
+        '//div[contains(@class, "landing-wrapper")]//canvas'
     ],
     # Chat list elements
     'chat_list': [
-        '//div[contains(@class, "_2AOIt")]',  # Updated based on reference
         '//div[@data-testid="chat-list"]',
         '//div[contains(@class, "_3YS_f")]',
-        '//div[contains(@class, "chat-list")]',
-        '//div[contains(@class, "_2xAQV")]'
+        '//div[contains(@class, "_2AOIt")]',
+        '//div[contains(@class, "two-column")]//div[contains(@class, "chat-list")]',
+        '//div[contains(@aria-label, "Chat list")]'
+    ],
+    # Chat elements
+    'chat': [
+        '//div[contains(@class, "chat")]//div[contains(@class, "selectable-text")]',
+        '//div[@role="row"]',
+    ],
+    # Message container
+    'message_container': [
+        '//div[@role="application"]//div[@id="main"]//div[contains(@class, "message-list")]',
+        '//div[contains(@class, "_2gzeB")]',
+        '//div[@data-testid="conversation-panel-messages"]'
     ],
     # Message elements
     'message': [
         '//div[contains(@class, "message-in")]',
         '//div[contains(@class, "_1-FMR")]',
-        '//div[contains(@class, "message")]'
+        '//div[contains(@class, "focusable-list-item")]',
+        '//div[@data-testid="msg-container"]'
     ],
     # Message text
     'message_text': [
-        './/div[contains(@class, "_21Ahp")]',  # Updated based on reference (priority)
+        './/div[contains(@class, "_21Ahp")]',
         './/div[contains(@class, "selectable-text")]',
-        './/span[contains(@class, "selectable-text")]'
+        './/span[contains(@class, "selectable-text")]',
+        './/div[@data-testid="msg-text"]'
     ],
     # Message sender
     'message_sender': [
         './/div[contains(@class, "_21nHd")]',
         './/span[contains(@class, "_3FuDI")]',
-        './/span[contains(@class, "sender")]'
+        './/span[contains(@class, "copyable-text")]//span',
+        './/span[@data-testid="author"]'
     ],
     # Message timestamp
     'message_time': [
         './/div[contains(@class, "_1beEj")]',
         './/span[contains(@class, "_2JNr-")]',
-        './/span[contains(@class, "message-time")]'
+        './/div[@data-testid="msg-meta"]'
     ],
     # Group name
     'group_name': [
-        '//div[contains(@class, "_3W2ap")]',
+        '//header//div[contains(@class, "_3W2ap")]',
         '//span[contains(@class, "_3ko75")]',
-        '//span[contains(@class, "group-name")]'
+        '//header//div[@data-testid="conversation-info-header"]//span'
     ],
     # Chat search
     'chat_search': [
         '//div[contains(@class, "_1EUay")]//div[@contenteditable="true"]',
         '//div[contains(@class, "lexical-rich-text-input")]//div[@contenteditable="true"]',
-        '//div[contains(@title, "Search")]'
+        '//div[contains(@role, "textbox")]',
+        '//div[@data-testid="chat-list-search"]//div[@contenteditable="true"]'
     ],
     # Contact/group selector (by name)
     'contact_by_name': [
-        '//span[@title="{}"]',  # Added from reference code
-        '//span[contains(text(),"{}")]'
+        '//span[@title="{}"]',
+        '//span[contains(text(),"{}")]',
+        '//div[@role="row" and contains(., "{}")]'
+    ],
+    # Back button in chat window
+    'back_button': [
+        '//div[@data-testid="back-btn"]',
+        '//button[@data-testid="back"]',
+        '//span[@data-testid="back"]',
+        '//button[@aria-label="Back"]'
     ]
 }
 
@@ -279,47 +305,8 @@ def test_whatsapp_connection():
         headless = False  # Always use visible mode for testing
         
         # Initialize the browser with improved options
-        if browser_type == "chrome":
-            options = webdriver.ChromeOptions()
-            if headless:
-                options.add_argument("--headless=new")
-            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "chrome"))
-            
-            # Add additional options for stability
-            for option in config.get("additional_browser_options", []):
-                options.add_argument(option)
-                
-            # Disable automation flags
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option("useAutomationExtension", False)
-            
-            try:
-                # Try the newer method with Service
-                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-            except Exception as e:
-                console.print(f"[yellow]Error with newer ChromeDriver method: {e}. Trying fallback method...[/yellow]")
-                # Fallback to direct executable_path (for older versions)
-                try:
-                    driver = webdriver.Chrome(options=options)
-                except Exception:
-                    console.print("[red]Could not initialize Chrome driver. Please ensure Chrome is installed.[/red]")
-                    return False
-                
-        elif browser_type == "firefox":
-            options = webdriver.FirefoxOptions()
-            if headless:
-                options.add_argument("--headless")
-            options.add_argument("--profile")
-            options.add_argument(str(WHATSAPP_SESSION_PATH / "firefox"))
-            driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
-        elif browser_type == "edge":
-            options = webdriver.EdgeOptions()
-            if headless:
-                options.add_argument("--headless=new")
-            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "edge"))
-            driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
-        else:
-            console.print(f"[red]Unsupported browser type: {browser_type}[/red]")
+        driver = initialize_webdriver(browser_type, headless, config)
+        if not driver:
             return False
         
         # Set the window size large enough to avoid mobile view
@@ -334,7 +321,7 @@ def test_whatsapp_connection():
             # Try each QR code selector
             for selector in WHATSAPP_SELECTORS['qr_code']:
                 try:
-                    WebDriverWait(driver, 10).until(
+                    qr_element = WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.XPATH, selector))
                     )
                     found_qr = True
@@ -346,24 +333,7 @@ def test_whatsapp_connection():
             
             if found_qr:
                 # Wait for login with longer timeout
-                chat_list_found = False
-                # First try CSS class selector (from reference code)
-                try:
-                    WebDriverWait(driver, 120).until(
-                        EC.presence_of_element_located((By.CLASS_NAME, '_2AOIt'))
-                    )
-                    chat_list_found = True
-                except TimeoutException:
-                    # Fall back to our list of XPath selectors
-                    for selector in WHATSAPP_SELECTORS['chat_list']:
-                        try:
-                            WebDriverWait(driver, 30).until(
-                                EC.presence_of_element_located((By.XPATH, selector))
-                            )
-                            chat_list_found = True
-                            break
-                        except TimeoutException:
-                            continue
+                chat_list_found = wait_for_chat_list(driver, 120)
                 
                 if chat_list_found:
                     console.print("[green]Successfully connected to WhatsApp Web![/green]")
@@ -382,24 +352,7 @@ def test_whatsapp_connection():
             console.print(f"[yellow]Error waiting for QR code: {str(e)}[/yellow]")
         
         # If QR code not found, check if already logged in
-        chat_list_found = False
-        # First try CSS class selector (from reference code)
-        try:
-            WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located((By.CLASS_NAME, '_2AOIt'))
-            )
-            chat_list_found = True
-        except TimeoutException:
-            # Fall back to our list of XPath selectors
-            for selector in WHATSAPP_SELECTORS['chat_list']:
-                try:
-                    WebDriverWait(driver, 15).until(
-                        EC.presence_of_element_located((By.XPATH, selector))
-                    )
-                    chat_list_found = True
-                    break
-                except TimeoutException:
-                    continue
+        chat_list_found = wait_for_chat_list(driver, 30)
         
         if chat_list_found:
             console.print("[green]Already authenticated with WhatsApp Web![/green]")
@@ -419,6 +372,116 @@ def test_whatsapp_connection():
         if driver:
             driver.quit()
         return False
+
+def initialize_webdriver(browser_type, headless, config):
+    """Initialize and return a webdriver based on the specified browser type."""
+    try:
+        if browser_type == "chrome":
+            options = webdriver.ChromeOptions()
+            if headless:
+                options.add_argument("--headless=new")
+            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "chrome"))
+            
+            # Add additional options for stability
+            for option in config.get("additional_browser_options", []):
+                options.add_argument(option)
+                
+            # Disable automation flags to avoid detection
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option("useAutomationExtension", False)
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            
+            # Improved options to avoid detection
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--window-size=1200,800")
+            options.add_argument("--start-maximized")
+            options.add_argument(f"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            
+            try:
+                # Try the newer method with Service
+                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            except Exception as e:
+                console.print(f"[yellow]Error with newer ChromeDriver method: {e}. Trying fallback method...[/yellow]")
+                # Fallback to direct executable_path (for older versions)
+                try:
+                    driver = webdriver.Chrome(options=options)
+                except Exception as chrome_error:
+                    console.print(f"[red]Could not initialize Chrome driver: {chrome_error}[/red]")
+                    return None
+                
+        elif browser_type == "firefox":
+            options = webdriver.FirefoxOptions()
+            if headless:
+                options.add_argument("--headless")
+            options.add_argument("--profile")
+            options.add_argument(str(WHATSAPP_SESSION_PATH / "firefox"))
+            
+            try:
+                driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
+            except Exception as e:
+                console.print(f"[red]Could not initialize Firefox driver: {e}[/red]")
+                return None
+                
+        elif browser_type == "edge":
+            options = webdriver.EdgeOptions()
+            if headless:
+                options.add_argument("--headless=new")
+            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "edge"))
+            
+            try:
+                driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
+            except Exception as e:
+                console.print(f"[red]Could not initialize Edge driver: {e}[/red]")
+                return None
+        else:
+            console.print(f"[red]Unsupported browser type: {browser_type}[/red]")
+            return None
+        
+        return driver
+    except Exception as e:
+        console.print(f"[red]Error initializing webdriver: {e}[/red]")
+        return None
+
+def wait_for_chat_list(driver, timeout=30):
+    """Wait for the chat list to appear, indicating successful login."""
+    chat_list_found = False
+    
+    try:
+        # Try various selector approaches to find chat list
+        # First try CSS class selector 
+        try:
+            WebDriverWait(driver, timeout).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="chat-list"]'))
+            )
+            chat_list_found = True
+            return True
+        except TimeoutException:
+            pass
+        
+        try:
+            WebDriverWait(driver, timeout).until(
+                EC.presence_of_element_located((By.CLASS_NAME, '_2AOIt'))
+            )
+            chat_list_found = True
+            return True
+        except TimeoutException:
+            pass
+        
+        # Fall back to our list of XPath selectors
+        for selector in WHATSAPP_SELECTORS['chat_list']:
+            try:
+                WebDriverWait(driver, timeout/len(WHATSAPP_SELECTORS['chat_list'])).until(
+                    EC.presence_of_element_located((By.XPATH, selector))
+                )
+                chat_list_found = True
+                return True
+            except TimeoutException:
+                continue
+    except Exception as e:
+        console.print(f"[yellow]Error while waiting for chat list: {e}[/yellow]")
+    
+    return chat_list_found
 
 def extract_tasks_from_message(message_text):
     """Extract potential tasks from a message using simple rules or Claude API."""
@@ -484,14 +547,14 @@ def extract_tasks_from_message(message_text):
     return potential_tasks
 
 def scan_whatsapp_messages(problem_id=None, use_export=False):
-    """Scan WhatsApp messages for tasks."""
+    """Scan WhatsApp messages for tasks with improved reliability."""
     config = load_whatsapp_config()
     
     if not config.get("whatsapp_web_enabled", False):
         console.print("[yellow]WhatsApp integration is not enabled. Run 'configure-whatsapp' first.[/yellow]")
         return False
     
-    if use_export:
+    if use_export or config.get("use_export", False):
         return scan_from_exported_chats(problem_id)
     
     if not SELENIUM_AVAILABLE:
@@ -510,49 +573,9 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
     
     driver = None
     try:
-        # Initialize the browser with improved options
-        if browser_type == "chrome":
-            options = webdriver.ChromeOptions()
-            if headless:
-                options.add_argument("--headless=new")
-            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "chrome"))
-            
-            # Add additional options for stability
-            for option in config.get("additional_browser_options", []):
-                options.add_argument(option)
-                
-            # Disable automation flags
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option("useAutomationExtension", False)
-            
-            try:
-                # Try the newer method with Service
-                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-            except Exception as e:
-                console.print(f"[yellow]Error with newer ChromeDriver method: {e}. Trying fallback method...[/yellow]")
-                # Fallback to direct initialization (for older versions)
-                try:
-                    driver = webdriver.Chrome(options=options)
-                except Exception as chrome_error:
-                    console.print(f"[red]Could not initialize Chrome driver: {chrome_error}[/red]")
-                    return use_fallback_method(problem_id)
-                
-        elif browser_type == "firefox":
-            options = webdriver.FirefoxOptions()
-            if headless:
-                options.add_argument("--headless")
-            options.add_argument("--profile")
-            options.add_argument(str(WHATSAPP_SESSION_PATH / "firefox"))
-            driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
-        elif browser_type == "edge":
-            options = webdriver.EdgeOptions()
-            if headless:
-                options.add_argument("--headless=new")
-            options.add_argument("--user-data-dir=" + str(WHATSAPP_SESSION_PATH / "edge"))
-            driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
-        else:
-            console.print(f"[red]Unsupported browser type: {browser_type}[/red]")
-            return False
+        driver = initialize_webdriver(browser_type, headless, config)
+        if not driver:
+            return use_fallback_method(problem_id)
         
         # Set window size to avoid mobile view
         driver.set_window_size(1200, 800)
@@ -560,17 +583,8 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
         # Open WhatsApp Web
         driver.get("https://web.whatsapp.com/")
         
-        # Check if we're logged in
-        chat_list_found = False
-        for selector in WHATSAPP_SELECTORS['chat_list']:
-            try:
-                WebDriverWait(driver, 30).until(
-                    EC.presence_of_element_located((By.XPATH, selector))
-                )
-                chat_list_found = True
-                break
-            except TimeoutException:
-                continue
+        # Check if we're logged in by waiting for chat list
+        chat_list_found = wait_for_chat_list(driver, 30)
         
         if not chat_list_found:
             console.print("[red]Failed to load WhatsApp Web or not logged in. Please run 'test-whatsapp-connection' first.[/red]")
@@ -596,149 +610,112 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
                 # Look for the group in the chat list
                 group_found = False
                 try:
-                    # Try to find the search box
-                    search_found = False
-                    for selector in WHATSAPP_SELECTORS['chat_search']:
-                        try:
-                            search_box = WebDriverWait(driver, 10).until(
-                                EC.presence_of_element_located((By.XPATH, selector))
-                            )
-                            search_found = True
-                            break
-                        except (TimeoutException, NoSuchElementException):
-                            continue
+                    # Try to find the search box with multiple attempts
+                    search_found = find_and_interact_with_search_box(driver, group_name)
                     
                     if not search_found:
                         console.print(f"[yellow]Could not find search box for group: {group_name}[/yellow]")
                         continue
                     
-                    # Clear any existing search
-                    search_box.clear()
-                    time.sleep(1)
+                    # Wait after search to ensure results are loaded
+                    time.sleep(2)
                     
-                    # Enter group name in search box
-                    search_box.send_keys(group_name)
-                    time.sleep(3)  # Wait for search results
-                    
-                    # Look for the group in search results using the contact selector from reference code
-                    for selector_template in WHATSAPP_SELECTORS['contact_by_name']:
-                        try:
-                            selector = selector_template.format(group_name)
-                            contact_element = WebDriverWait(driver, 5).until(
-                                EC.element_to_be_clickable((By.XPATH, selector))
-                            )
-                            contact_element.click()
-                            group_found = True
-                            break
-                        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException):
-                            continue
-                    
-                    # If not found with specific selector, try the more general approach
-                    if not group_found:
-                        group_elements = driver.find_elements(By.XPATH, f"//span[contains(text(),'{group_name}')]")
-                        
-                        if group_elements:
-                            # Try to click the first matching group
-                            for element in group_elements:
-                                try:
-                                    # Try to find the clickable parent
-                                    parent = element
-                                    for _ in range(5):  # Look up to 5 levels up
-                                        if parent.tag_name == 'div' and 'chat-list' in parent.get_attribute('class'):
-                                            parent.click()
-                                            group_found = True
-                                            break
-                                        parent = parent.find_element(By.XPATH, '..')
-                                    
-                                    if not group_found:
-                                        # Direct click attempt
-                                        element.click()
-                                        group_found = True
-                                    
-                                    break
-                                except (NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException, StaleElementReferenceException):
-                                    continue
+                    # Try clicking on the group with multiple approaches
+                    group_found = click_on_contact_or_group(driver, group_name)
                     
                     if not group_found:
                         console.print(f"[yellow]Group not found or couldn't be clicked: {group_name}[/yellow]")
+                        # Clear search and continue to next group
+                        try:
+                            for back_selector in WHATSAPP_SELECTORS['back_button']:
+                                try:
+                                    back_button = driver.find_element(By.XPATH, back_selector)
+                                    back_button.click()
+                                    time.sleep(1)
+                                    break
+                                except (NoSuchElementException, ElementClickInterceptedException):
+                                    continue
+                        except Exception:
+                            pass
                         continue
                     
                     # Wait for messages to load
                     time.sleep(3)
                     
-                    # Extract messages - first try the class from reference code
-                    try:
-                        messages = driver.find_elements(By.CLASS_NAME, '_21Ahp')
-                        console.print(f"[cyan]Found {len(messages)} messages using reference class.[/cyan]")
-                    except NoSuchElementException:
-                        # Fall back to our selectors
-                        messages = []
-                        for selector in WHATSAPP_SELECTORS['message']:
-                            try:
-                                message_elements = driver.find_elements(By.XPATH, selector)
-                                if message_elements:
-                                    messages = message_elements
-                                    console.print(f"[cyan]Found {len(messages)} messages using selector: {selector}[/cyan]")
-                                    break
-                            except NoSuchElementException:
-                                continue
+                    # Extract messages with multiple approaches
+                    messages = extract_messages(driver, max_messages)
                     
-                    # Limit to the specified maximum number of messages
-                    messages = messages[-min(max_messages, len(messages)):]
+                    if not messages:
+                        console.print(f"[yellow]No messages found in group: {group_name}[/yellow]")
+                        # Go back to the chat list
+                        try:
+                            for back_selector in WHATSAPP_SELECTORS['back_button']:
+                                try:
+                                    back_button = driver.find_element(By.XPATH, back_selector)
+                                    back_button.click()
+                                    time.sleep(1)
+                                    break
+                                except (NoSuchElementException, ElementClickInterceptedException):
+                                    continue
+                        except Exception:
+                            pass
+                        continue
                     
                     progress.update(task, description=f"[cyan]Processing {len(messages)} messages from {group_name}[/cyan]")
                     
                     # Process each message
                     for message_element in messages:
                         try:
-                            # Extract message text
-                            message_text = ""
-                            for selector in WHATSAPP_SELECTORS['message_text']:
-                                try:
-                                    text_elements = message_element.find_elements(By.XPATH, selector)
-                                    if text_elements:
-                                        message_text = " ".join([el.text for el in text_elements if el.text])
-                                        break
-                                except NoSuchElementException:
-                                    continue
+                            # Extract message text and sender with multiple approaches
+                            message_info = extract_message_info(message_element)
                             
-                            # Skip if message is too short
-                            if len(message_text.split()) < min_words:
+                            if not message_info['text'] or len(message_info['text'].split()) < min_words:
                                 continue
                             
-                            # Extract sender
-                            sender = "Unknown"
-                            for selector in WHATSAPP_SELECTORS['message_sender']:
-                                try:
-                                    sender_elements = message_element.find_elements(By.XPATH, selector)
-                                    if sender_elements and sender_elements[0].text:
-                                        sender = sender_elements[0].text
-                                        break
-                                except NoSuchElementException:
-                                    continue
-                            
                             # Generate a unique message ID
-                            message_id = f"{group_name}_{sender}_{hash(message_text)}"
+                            message_id = f"{group_name}_{message_info['sender']}_{hash(message_info['text'])}"
                             
                             # Extract tasks from message
-                            tasks = extract_tasks_from_message(message_text)
+                            tasks = extract_tasks_from_message(message_info['text'])
                             
                             if tasks:
                                 for task in tasks:
                                     all_tasks.append({
                                         'message_id': message_id + f"_{hash(task)}",
-                                        'sender': sender,
-                                        'original_message': message_text,
+                                        'sender': message_info['sender'],
+                                        'original_message': message_info['text'],
                                         'task_description': task,
-                                        'timestamp': datetime.datetime.now().isoformat()
+                                        'timestamp': datetime.datetime.now().isoformat(),
+                                        'group_name': group_name
                                     })
                         
                         except Exception as e:
                             console.print(f"[yellow]Error processing message: {str(e)}[/yellow]")
                             continue
+                    
+                    # Go back to the chat list
+                    try:
+                        for back_selector in WHATSAPP_SELECTORS['back_button']:
+                            try:
+                                back_button = driver.find_element(By.XPATH, back_selector)
+                                back_button.click()
+                                time.sleep(1)
+                                break
+                            except (NoSuchElementException, ElementClickInterceptedException):
+                                continue
+                    except Exception:
+                        # If back button doesn't work, try reload
+                        driver.get("https://web.whatsapp.com/")
+                        wait_for_chat_list(driver, 20)
                 
                 except Exception as e:
                     console.print(f"[yellow]Error processing group {group_name}: {str(e)}[/yellow]")
+                    # Try to recover by going back to main screen
+                    try:
+                        driver.get("https://web.whatsapp.com/")
+                        wait_for_chat_list(driver, 20)
+                    except Exception:
+                        pass
                 
                 progress.update(task, advance=1)
         
@@ -747,11 +724,9 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
         # Save extracted tasks
         tasks_added = 0
         if all_tasks:
-            for group_name in monitored_groups:
-                group_tasks = [t for t in all_tasks if group_name in t['message_id']]
-                if group_tasks:
-                    added = save_tasks_to_db(group_tasks, group_name)
-                    tasks_added += added
+            for task in all_tasks:
+                added = save_tasks_to_db([task], task['group_name'])
+                tasks_added += added
         
         # Update last scan time
         config["last_scan_time"] = datetime.datetime.now().isoformat()
@@ -773,6 +748,269 @@ def scan_whatsapp_messages(problem_id=None, use_export=False):
         if driver:
             driver.quit()
         return use_fallback_method(problem_id)
+
+def find_and_interact_with_search_box(driver, search_text):
+    """Find and interact with the search box using multiple approaches."""
+    # Try multiple search approaches
+    for selector in WHATSAPP_SELECTORS['chat_search']:
+        try:
+            search_box = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, selector))
+            )
+            
+            # Clear any existing search
+            search_box.clear()
+            time.sleep(0.5)
+            
+            # Enter search text with different methods
+            try:
+                search_box.send_keys(search_text)
+            except Exception:
+                try:
+                    # Alternative method
+                    driver.execute_script(f"arguments[0].innerText = '{search_text}'", search_box)
+                    search_box.send_keys(Keys.RETURN)
+                except Exception:
+                    # Final fallback
+                    actions = webdriver.ActionChains(driver)
+                    actions.move_to_element(search_box)
+                    actions.click()
+                    actions.send_keys(search_text)
+                    actions.perform()
+            
+            time.sleep(2)  # Wait for search results
+            return True
+            
+        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException):
+            continue
+    
+    # One more approach - look for any input field or search icon
+    try:
+        inputs = driver.find_elements(By.CSS_SELECTOR, 'input, div[role="textbox"], div[contenteditable="true"]')
+        for input_elem in inputs:
+            try:
+                if input_elem.is_displayed():
+                    input_elem.clear()
+                    input_elem.send_keys(search_text)
+                    time.sleep(2)
+                    return True
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
+    return False
+
+def click_on_contact_or_group(driver, name):
+    """Click on a contact or group using multiple approaches."""
+    # Try templated selectors
+    for selector_template in WHATSAPP_SELECTORS['contact_by_name']:
+        try:
+            selector = selector_template.format(name)
+            contact_element = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, selector))
+            )
+            contact_element.click()
+            time.sleep(2)  # Wait after click
+            return True
+        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException):
+            continue
+    
+    # Try search results with different approaches
+    try:
+        # Look for elements containing the name
+        elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{name}')]")
+        for element in elements:
+            try:
+                if element.is_displayed():
+                    # Try to get the parent div that's clickable
+                    parent = element
+                    for _ in range(5):  # Look up to 5 levels up
+                        if parent.tag_name == 'div':
+                            try:
+                                parent.click()
+                                time.sleep(2)
+                                return True
+                            except Exception:
+                                # Continue with parent traversal
+                                pass
+                        
+                        try:
+                            parent = parent.find_element(By.XPATH, '..')
+                        except Exception:
+                            break
+                    
+                    # Try direct click if parent navigation didn't work
+                    try:
+                        element.click()
+                        time.sleep(2)
+                        return True
+                    except Exception:
+                        pass
+            except (StaleElementReferenceException, ElementClickInterceptedException, ElementNotInteractableException):
+                continue
+    except Exception:
+        pass
+    
+    # Try another approach - any clickable row after search
+    try:
+        rows = driver.find_elements(By.CSS_SELECTOR, '[role="row"], .chat-item, ._2aBzC')
+        if rows:
+            # Try to click the first visible row
+            for row in rows:
+                try:
+                    if row.is_displayed():
+                        row.click()
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    
+    return False
+
+def extract_messages(driver, max_messages=50):
+    """Extract messages from the current chat with multiple approaches."""
+    messages = []
+    
+    # Try to find the message container first
+    message_container = None
+    for selector in WHATSAPP_SELECTORS['message_container']:
+        try:
+            container = driver.find_element(By.XPATH, selector)
+            message_container = container
+            break
+        except NoSuchElementException:
+            continue
+    
+    # Different approaches to find messages
+    try:
+        # Approach 1: Direct class selector
+        elements = driver.find_elements(By.CSS_SELECTOR, '.message-in, [data-testid="msg-container"]')
+        if elements:
+            messages = elements[-min(max_messages, len(elements)):]
+            return messages
+    except Exception:
+        pass
+    
+    # Approach 2: Using XPath selectors from our dictionary
+    for selector in WHATSAPP_SELECTORS['message']:
+        try:
+            if message_container:
+                # Search within container if found
+                elements = message_container.find_elements(By.XPATH, f".{selector}")
+            else:
+                # Global search otherwise
+                elements = driver.find_elements(By.XPATH, selector)
+            
+            if elements:
+                messages = elements[-min(max_messages, len(elements)):]
+                return messages
+        except Exception:
+            continue
+    
+    # Approach 3: Try with general message patterns
+    try:
+        elements = driver.find_elements(By.CSS_SELECTOR, '.selectable-text, [data-testid="msg-text"]')
+        if elements:
+            # Group by parent to get actual message containers
+            grouped_messages = {}
+            for elem in elements:
+                try:
+                    # Go up to find message container
+                    parent = elem
+                    for _ in range(5):
+                        parent = parent.find_element(By.XPATH, '..')
+                        # Check if this is a message container
+                        class_attr = parent.get_attribute('class') or ''
+                        if 'message' in class_attr or 'msg' in class_attr:
+                            if parent not in grouped_messages:
+                                grouped_messages[parent] = parent
+                            break
+                except Exception:
+                    break
+            
+            # Convert dictionary keys to list
+            messages = list(grouped_messages.keys())
+            # Limit to max messages
+            messages = messages[-min(max_messages, len(messages)):]
+            return messages
+    except Exception:
+        pass
+    
+    return messages
+
+def extract_message_info(message_element):
+    """Extract text, sender, and time from a message element using multiple approaches."""
+    message_info = {
+        'text': '',
+        'sender': 'Unknown',
+        'time': ''
+    }
+    
+    # Extract message text
+    try:
+        # Approach 1: Using our selector patterns
+        for selector in WHATSAPP_SELECTORS['message_text']:
+            try:
+                text_elements = message_element.find_elements(By.XPATH, selector)
+                if text_elements:
+                    message_info['text'] = " ".join([el.text for el in text_elements if el.text])
+                    break
+            except NoSuchElementException:
+                continue
+        
+        # Approach 2: Direct CSS selectors
+        if not message_info['text']:
+            try:
+                text_elements = message_element.find_elements(By.CSS_SELECTOR, '.selectable-text, [data-testid="msg-text"]')
+                if text_elements:
+                    message_info['text'] = " ".join([el.text for el in text_elements if el.text])
+            except Exception:
+                pass
+        
+        # Approach 3: Any text content
+        if not message_info['text']:
+            message_info['text'] = message_element.text
+    except Exception:
+        pass
+    
+    # Extract sender
+    try:
+        # Try our selector patterns
+        for selector in WHATSAPP_SELECTORS['message_sender']:
+            try:
+                sender_elements = message_element.find_elements(By.XPATH, selector)
+                if sender_elements and sender_elements[0].text:
+                    message_info['sender'] = sender_elements[0].text
+                    break
+            except NoSuchElementException:
+                continue
+        
+        # Try data-testid attribute
+        if message_info['sender'] == 'Unknown':
+            try:
+                author = message_element.find_element(By.CSS_SELECTOR, '[data-testid="author"]')
+                if author and author.text:
+                    message_info['sender'] = author.text
+            except Exception:
+                pass
+        
+        # Try to find a bold element which may be the sender
+        if message_info['sender'] == 'Unknown':
+            try:
+                bold_elements = message_element.find_elements(By.CSS_SELECTOR, 'span[dir="auto"][role="button"], strong')
+                for el in bold_elements:
+                    if el.text and len(el.text) < 30:  # Sender names should be relatively short
+                        message_info['sender'] = el.text
+                        break
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    return message_info
 
 def scan_from_exported_chats(problem_id=None):
     """Scan exported WhatsApp chat files for tasks."""
@@ -826,7 +1064,8 @@ def scan_from_exported_chats(problem_id=None):
                             'sender': sender,
                             'original_message': message_text,
                             'task_description': task,
-                            'timestamp': datetime.datetime.now().isoformat()
+                            'timestamp': datetime.datetime.now().isoformat(),
+                            'group_name': group_name
                         })
         
         except Exception as e:
@@ -835,17 +1074,9 @@ def scan_from_exported_chats(problem_id=None):
     # Save extracted tasks
     tasks_added = 0
     if all_tasks:
-        # Group tasks by group name
-        group_dict = {}
-        for task in all_tasks:
-            group_name = task['message_id'].split('_')[0]
-            if group_name not in group_dict:
-                group_dict[group_name] = []
-            group_dict[group_name].append(task)
-        
         # Save tasks for each group
-        for group_name, tasks in group_dict.items():
-            added = save_tasks_to_db(tasks, group_name)
+        for task in all_tasks:
+            added = save_tasks_to_db([task], task['group_name'])
             tasks_added += added
     
     # Update last scan time
@@ -867,26 +1098,55 @@ def use_fallback_method(problem_id=None):
     """Use a fallback method to create sample tasks when actual scanning fails."""
     console.print("[yellow]Using fallback task extraction method.[/yellow]")
     
-    # Create some sample fallback tasks
+    # Create some sample fallback tasks with more variety
     fallback_tasks = [
         {
             'message_id': f"fallback_1_{int(time.time())}",
             'sender': "System",
             'original_message': "Please check our project progress and update the timeline.",
             'task_description': "Check project progress and update timeline",
-            'timestamp': datetime.datetime.now().isoformat()
+            'timestamp': datetime.datetime.now().isoformat(),
+            'group_name': "Fallback Group"
         },
         {
             'message_id': f"fallback_2_{int(time.time())}",
             'sender': "System",
             'original_message': "Don't forget to prepare for tomorrow's meeting with the client.",
             'task_description': "Prepare for tomorrow's client meeting",
-            'timestamp': datetime.datetime.now().isoformat()
+            'timestamp': datetime.datetime.now().isoformat(),
+            'group_name': "Fallback Group"
+        },
+        {
+            'message_id': f"fallback_3_{int(time.time())}",
+            'sender': "System",
+            'original_message': "We need to review the latest feedback from the design team.",
+            'task_description': "Review design team feedback",
+            'timestamp': datetime.datetime.now().isoformat(),
+            'group_name': "Fallback Group"
+        },
+        {
+            'message_id': f"fallback_4_{int(time.time())}",
+            'sender': "System",
+            'original_message': "Can you send the updated proposal to the marketing department by EOD?",
+            'task_description': "Send updated proposal to marketing by EOD",
+            'timestamp': datetime.datetime.now().isoformat(),
+            'group_name': "Project Updates"
+        },
+        {
+            'message_id': f"fallback_5_{int(time.time())}",
+            'sender': "System",
+            'original_message': "Remember to update the KPIs for the Q2 report.",
+            'task_description': "Update KPIs for Q2 report",
+            'timestamp': datetime.datetime.now().isoformat(),
+            'group_name': "Project Updates"
         }
     ]
     
     # Save the tasks
-    tasks_added = save_tasks_to_db(fallback_tasks, "Fallback Group")
+    tasks_added = 0
+    for task in fallback_tasks:
+        added = save_tasks_to_db([task], task['group_name'])
+        tasks_added += added
     
     # Assign to problem if specified
     if problem_id is not None and tasks_added > 0:
